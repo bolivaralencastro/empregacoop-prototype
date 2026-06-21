@@ -76,8 +76,7 @@ export function ProtoControls() {
   }
 
   function selectStage(count: number) {
-    const effectiveMode = mode === "complete" && count < PROTO_TOTAL ? "manual" : mode;
-    dispatch(count, effectiveMode);
+    dispatch(count, mode);
   }
 
   function selectMode(m: ProtoMode) {
@@ -132,6 +131,29 @@ export function ProtoControls() {
           {/* Scrollable body */}
           <div className="flex-1 min-h-0 overflow-y-auto">
 
+            {/* Modo do assistente */}
+            <div className="px-3 pt-2.5 pb-2 border-b border-border">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
+                Modo do assistente
+              </p>
+              <div className="grid grid-cols-3 gap-1">
+                {modes.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => selectMode(m.id)}
+                    className={`flex items-center justify-center gap-1 h-7 rounded-lg text-[11px] font-medium transition-colors ${
+                      mode === m.id
+                        ? "bg-primary text-white shadow-sm"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {m.icon}
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Telas — navigate to any page */}
             <div className="px-3 pt-2.5 pb-2 border-b border-border">
               <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
@@ -156,29 +178,6 @@ export function ProtoControls() {
                     </button>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Modo do assistente */}
-            <div className="px-3 pt-2.5 pb-2 border-b border-border">
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
-                Modo do assistente
-              </p>
-              <div className="grid grid-cols-3 gap-1">
-                {modes.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => selectMode(m.id)}
-                    className={`flex items-center justify-center gap-1 h-7 rounded-lg text-[11px] font-medium transition-colors ${
-                      mode === m.id
-                        ? "bg-primary text-white shadow-sm"
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {m.icon}
-                    {m.label}
-                  </button>
-                ))}
               </div>
             </div>
 
