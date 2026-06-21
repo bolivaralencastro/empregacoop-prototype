@@ -149,23 +149,19 @@
 [data-tooltip]:hover::after {
   opacity: 1;
 }
-/* Right-aligned: for buttons near the right viewport edge */
 [data-tooltip-dir="left"]::after {
   left: auto;
   right: 0;
   transform: none;
 }
-/* Left-aligned: for buttons near the left viewport edge */
 [data-tooltip-dir="right"]::after {
   left: 0;
   transform: none;
 }
-/* Below: for buttons near the top viewport edge */
 [data-tooltip-dir="down"]::after {
   top: calc(100% + 6px);
   bottom: auto;
 }
-/* Below + right-aligned: for top-right corner buttons */
 [data-tooltip-dir="down-left"]::after {
   top: calc(100% + 6px);
   bottom: auto;
@@ -173,3 +169,37 @@
   right: 0;
   transform: none;
 }
+
+.mermaid-shell {
+  overflow-x: auto;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, white 20%);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 144, 71, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(243, 231, 245, 0.55) 0%, rgba(255, 255, 255, 0.96) 100%);
+}
+
+.mermaid-stage {
+  min-width: 760px;
+  padding: 20px;
+}
+
+.mermaid-stage svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* UserAvatar progress ring micro-interactions */
+@keyframes avatar-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+@keyframes arc-glow {
+  0%   { filter: drop-shadow(0 0 0 transparent); }
+  40%  { filter: drop-shadow(0 0 5px oklch(0.609 0.135 162 / 0.65)); }
+  100% { filter: drop-shadow(0 0 0 transparent); }
+}
+.avatar-pop { animation: avatar-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.arc-glow   { animation: arc-glow 0.65s ease-out both; }

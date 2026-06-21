@@ -16,7 +16,6 @@ import {
   Send,
   Paperclip,
   Mic,
-  MicOff,
   PhoneOff,
   ArrowRight,
   Sparkles,
@@ -25,9 +24,23 @@ import {
   CheckCircle,
   RefreshCw,
   Zap,
+  Wand2,
   Star,
+  X,
+  User,
+  MapPin,
+  Download,
+  type LucideIcon,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
+import { generateCurriculoPdf } from "@/lib/generateCurriculoPdf";
+
+const COMMAND_ITEMS: { cmd: string; Icon: LucideIcon; desc: string; href?: string }[] = [
+  { cmd: "/perfil", Icon: User, desc: "Completar ou atualizar dados do perfil" },
+  { cmd: "/vagas", Icon: Briefcase, desc: "Explorar vagas compatíveis com seu perfil" },
+  { cmd: "/cursos", Icon: GraduationCap, desc: "Acessar sua trilha de capacitação" },
+  { cmd: "/anexar", Icon: Paperclip, desc: "Enviar um arquivo ou currículo" },
+];
 
 /* ── Data ─────────────────────────────────────────────────────────────── */
 
@@ -37,7 +50,7 @@ type JStep =
   | { id: number; label: string; status: "locked"; unlocks?: string }
   | { id: number; label: string; status: "current"; count?: string; context?: string; substeps?: StepSub[] };
 
-function getJourneySteps(n: number): JStep[] {
+function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
   const d = (id: number, label: string): JStep => ({ id, label, status: "done" });
   const l = (id: number, label: string, unlocks?: string): JStep => ({ id, label, status: "locked", unlocks });
   const TAIL: JStep[] = [
@@ -46,32 +59,74 @@ function getJourneySteps(n: number): JStep[] {
     l(6, "Candidaturas", "Candidatura com um clique"),
     l(7, "Reativação", "Perfil sempre atualizado"),
   ];
-  const subLabels = ["Dados pessoais", "Localização", "Objetivo profissional", "Experiência profissional", "Formação acadêmica", "Habilidades e idiomas", "Currículo", "Referências"];
+  const subLabels = ["Dados pessoais", "Localização", "Objetivo profissional", "Experiência profissional", "Formação acadêmica", "Habilidades e idiomas"];
   const subs = (nDone: number, cur: number): StepSub[] =>
     subLabels.map((label, i) => ({ label, done: i < nDone, current: i === cur }));
 
-  if (n < 3) {
-    const ctx = n === 0 ? "Iniciando conversa" : "Apresentando o EmpregaCOOP";
+  if (n < 6) {
+    const ctx = n === 0 ? "Iniciando conversa"
+               : n < 3  ? "Apresentando o EmpregaCOOP"
+               : n === 3 ? "Solicitando currículo"
+               : n === 4 ? "Coletando preferências"
+               : "Identificando vagas compatíveis";
     return [d(1, "Acesso"), { id: 2, label: "Onboarding", status: "current", context: ctx }, l(3, "Perfil", "Construção do seu perfil"), ...TAIL];
   }
-  if (n < 5)  return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "1/8", context: "Coletando dados pessoais",        substeps: subs(0, 0) }, ...TAIL];
-  if (n < 7)  return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "2/8", context: "Coletando localização",             substeps: subs(1, 1) }, ...TAIL];
-  if (n < 11) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "4/8", context: "Coletando objetivo profissional",   substeps: subs(2, 2) }, ...TAIL];
-  if (n < 12) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "5/8", context: "Coletando experiência profissional", substeps: subs(3, 3) }, ...TAIL];
-  if (n < 13) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "7/10", context: "Emprecard gerado",                 substeps: subs(4, -1) }, ...TAIL];
+  if (n < 8)  return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "1/6", context: "Coletando dados pessoais",        substeps: subs(0, 0) }, ...TAIL];
+  if (n < 10) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "2/6", context: "Coletando localização",             substeps: subs(1, 1) }, ...TAIL];
+  if (n < 14) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "3/6", context: "Coletando objetivo profissional",   substeps: subs(2, 2) }, ...TAIL];
+  if (n < 15) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "4/6", context: "Coletando experiência profissional", substeps: subs(3, 3) }, ...TAIL];
+  if (n < 16) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "6/6", context: "Perfil completo",                   substeps: subs(6, -1) }, ...TAIL];
+  // Reativação: fortalecer perfil e nova candidatura
+  if (n >= 22) {
+    return [
+      d(1, "Acesso"), d(2, "Onboarding"), d(3, "Perfil"),
+      d(4, "Capacitação"),
+      d(5, "Vagas"),
+      d(6, "Candidaturas"),
+      { id: 7, label: "Reativação", status: "current" as const,
+        context: n >= 24 ? "Nova candidatura disponível" : "Fortalecendo perfil" },
+    ];
+  }
+  // Candidatura em acompanhamento
+  if (n >= 19) {
+    return [
+      d(1, "Acesso"), d(2, "Onboarding"), d(3, "Perfil"),
+      d(4, "Capacitação"),
+      d(5, "Vagas"),
+      { id: 6, label: "Candidaturas", status: "current" as const,
+        context: "Candidatura em acompanhamento" },
+      l(7, "Reativação", "Perfil sempre atualizado"),
+    ];
+  }
+
+  const c2done = cp === "done";
+  const c2progress = cp === "progress";
   const capSubs: StepSub[] = [
     { label: "Cooperativismo - Primeiras Licoes", done: true },
-    { label: "Gestao Estrategica de Financas", done: n >= 15 },
+    { label: "Gestao Estrategica de Financas", done: c2done, current: c2progress },
   ];
   return [
     d(1, "Acesso"), d(2, "Onboarding"), d(3, "Perfil"),
     { id: 4, label: "Capacitação", status: "current",
-      context: n >= 15 ? "Pré-requisito concluído" : "Analisando pré-requisitos",
+      context: c2done ? "Pré-requisito concluído" : c2progress ? "Curso em andamento" : "Analisando pré-requisitos",
       substeps: capSubs },
-    n >= 15 ? d(5, "Vagas") : l(5, "Vagas", "1 vaga compatível identificada"),
-    l(6, "Candidaturas", n >= 15 ? "Candidatura disponível →" : "Candidatura com um clique"),
+    c2done ? d(5, "Vagas") : l(5, "Vagas", "1 vaga compatível identificada"),
+    l(6, "Candidaturas", c2done ? "Candidatura disponível →" : "Candidatura com um clique"),
     l(7, "Reativação", "Perfil sempre atualizado"),
   ];
+}
+
+/* ── Profile progress ─────────────────────────────────────────────────── */
+
+function getProfileProgress(n: number): number {
+  if (n <= 1)  return 0;
+  if (n <= 2)  return 8;   // nome dado
+  if (n <= 4)  return 28;  // CV + preferências
+  if (n <= 7)  return 44;  // localização confirmada
+  if (n <= 9)  return 60;  // objetivo profissional
+  if (n <= 14) return 76;  // experiência detalhada
+  if (n <= 15) return 88;  // EmpreCard gerado
+  return 94;
 }
 
 /* ── PrereqCard helpers ────────────────────────────────────────────────── */
@@ -87,9 +142,79 @@ function statusFromPreset(preset: CoursePreset | null): Record<string, CourseSta
   return                            { [C1]: "done", [C2]: "idle" };
 }
 
+/* ── Avatars ───────────────────────────────────────────────────────────── */
+
+function AIAvatar() {
+  return (
+    <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden flex items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
+    </span>
+  );
+}
+
+function UserAvatar({ progress, onOpen }: { progress: number; onOpen?: () => void }) {
+  const prevRef = useRef(progress);
+  const [pulsing, setPulsing] = useState(false);
+
+  useEffect(() => {
+    if (progress <= prevRef.current) { prevRef.current = progress; return; }
+    prevRef.current = progress;
+    setPulsing(true);
+    const t = setTimeout(() => setPulsing(false), 700);
+    return () => clearTimeout(t);
+  }, [progress]);
+
+  const size = 36;
+  const sw = 2.5;
+  const r = (size - sw) / 2;
+  const circ = 2 * Math.PI * r;
+  const dashOffset = circ * (1 - progress / 100);
+
+  return (
+    <span
+      className={`relative flex-none${pulsing ? " avatar-pop" : ""}${onOpen ? " cursor-pointer" : ""}`}
+      style={{ width: size, height: size }}
+      onClick={onOpen}
+      role={onOpen ? "button" : undefined}
+      aria-label={onOpen ? `Ver progresso — ${progress}% completo` : undefined}
+      data-tooltip={onOpen ? `${progress}% completo` : undefined}
+      data-tooltip-dir="left"
+    >
+      <svg
+        className="absolute inset-0 -rotate-90"
+        width={size}
+        height={size}
+        style={{ overflow: "visible" }}
+      >
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={sw} />
+        {progress > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="var(--success)"
+            strokeWidth={sw}
+            strokeDasharray={circ}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            className={pulsing ? "arc-glow" : ""}
+            style={{ transition: "stroke-dashoffset 0.7s cubic-bezier(0.4, 0, 0.2, 1)" }}
+          />
+        )}
+      </svg>
+      <span className="absolute rounded-full overflow-hidden" style={{ inset: sw + 2 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
+      </span>
+    </span>
+  );
+}
+
 /* ── Sub-components ────────────────────────────────────────────────────── */
 
-function JourneyPanel({ count, onClose }: { count: number; onClose?: () => void }) {
+function JourneyPanel({ count, coursePreset, onClose }: { count: number; coursePreset: CoursePreset | null; onClose?: () => void }) {
   return (
     <aside
       className="flex flex-col overflow-hidden bg-card border-r border-border"
@@ -97,11 +222,12 @@ function JourneyPanel({ count, onClose }: { count: number; onClose?: () => void 
     >
       {/* Header */}
       <div className="flex-none px-3 pt-3 pb-2.5 border-b border-border flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold px-1">Sua jornada</h2>
+        <h2 className="text-sm font-semibold px-1">Jornada</h2>
         <button
           type="button"
           aria-label="Recolher jornada"
           data-tooltip="Recolher"
+          data-tooltip-dir="down"
           onClick={onClose}
           className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
         >
@@ -111,7 +237,7 @@ function JourneyPanel({ count, onClose }: { count: number; onClose?: () => void 
 
       {/* Steps */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-0.5">
-        {getJourneySteps(count).map((step) => {
+        {getJourneySteps(count, coursePreset).map((step) => {
           if (step.status === "done") {
             return (
               <div key={step.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl">
@@ -189,6 +315,111 @@ function JourneyPanel({ count, onClose }: { count: number; onClose?: () => void 
   );
 }
 
+/* ── Progress Panel (journey drawer, right side) ───────────────────────── */
+
+function progressMotivation(p: number): string {
+  if (p < 10)  return "Comece agora — leva menos de 5 minutos para preencher!";
+  if (p < 40)  return "Bom começo! Continue a conversa para avançar na jornada.";
+  if (p < 70)  return "Você está no caminho certo. Perfil completo = mais vagas!";
+  if (p < 90)  return "Quase lá — finalize as etapas restantes para se destacar.";
+  if (p < 100) return "Perfil quase completo. Você está prestes a ser encontrado!";
+  return "Perfil completo! Você está pronto para as melhores oportunidades.";
+}
+
+function ProgressPanel({
+  count,
+  coursePreset,
+  progress,
+  onClose,
+}: {
+  count: number;
+  coursePreset: CoursePreset | null;
+  progress: number;
+  onClose?: () => void;
+}) {
+  const steps = getJourneySteps(count, coursePreset);
+
+  return (
+    <aside className="flex flex-col h-full overflow-hidden bg-card border-l border-border">
+      <div className="flex-none px-3 pt-3 pb-2.5 border-b border-border flex items-center gap-2">
+        <h2 className="text-sm font-semibold flex-1 px-1">Sua jornada</h2>
+        <button
+          type="button"
+          aria-label="Fechar"
+          data-tooltip="Fechar"
+          data-tooltip-dir="down-left"
+          onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Progress summary */}
+      <div className="flex-none px-4 py-4 border-b border-border">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold">Perfil completo</p>
+          <span className="text-xs font-bold text-success">{progress}%</span>
+        </div>
+        <div className="h-2 rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full rounded-full bg-success transition-all duration-700"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed mt-2.5">
+          {progressMotivation(progress)}
+        </p>
+      </div>
+
+      {/* Steps */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 pt-2 space-y-0.5">
+        {steps.map((step) => {
+          if (step.status === "done") {
+            return (
+              <div key={step.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl">
+                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-success-soft text-success flex-none">
+                  <Check className="w-3 h-3" />
+                </span>
+                <span className="text-sm text-foreground/60 flex-1">{step.id}. {step.label}</span>
+              </div>
+            );
+          }
+          if (step.status === "current") {
+            return (
+              <div key={step.id} className="rounded-2xl border border-primary/30 bg-gradient-to-b from-brand-soft/50 to-card/80 p-3.5 my-1">
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-primary text-white text-xs font-bold flex-none">
+                    {step.id}
+                  </span>
+                  <span className="text-sm font-semibold flex-1">{step.label}</span>
+                  <span className="inline-flex items-center h-5 px-2 rounded-full bg-primary/10 text-primary text-xs font-semibold">Em curso</span>
+                </div>
+                {"context" in step && step.context && (
+                  <p className="text-xs text-primary/65 font-medium ml-[34px]">{step.context}</p>
+                )}
+              </div>
+            );
+          }
+          return (
+            <div key={step.id} className="flex items-start gap-2.5 px-2 py-2 rounded-xl opacity-45">
+              <span className="w-6 h-6 flex items-center justify-center rounded-full border border-border flex-none mt-0.5">
+                <Lock className="w-3 h-3 text-muted-foreground" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-5">{step.id}. {step.label}</p>
+                {"unlocks" in step && step.unlocks && (
+                  <p className="text-xs text-muted-foreground leading-4 mt-0.5">{step.unlocks}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
 const EMPRECARD_SECTIONS = [
   { id: "identidade", label: "Identidade & Design" },
   { id: "essencia", label: "Essência" },
@@ -211,8 +442,165 @@ const EMPRECARD_SECTIONS = [
   { id: "referencias", label: "Referências" },
 ];
 
-function ProfilePanel({ onClose }: { onClose?: () => void }) {
-  const [view, setView] = useState<"summary" | "curriculo" | "emprecard" | "emprecard-edit">("summary");
+const STATUS_OPTIONS = [
+  "Aguardando retorno",
+  "Em processo seletivo",
+  "Entrevista agendada",
+  "Proposta recebida",
+  "Encerrado",
+] as const;
+
+function VagasPanel({ onClose }: { onClose?: () => void }) {
+  const [status, setStatus] = useState<string>("Aguardando retorno");
+
+  return (
+    <aside className="flex flex-col h-full overflow-hidden bg-card border-l border-border">
+      <div className="flex-none px-3 pt-3 pb-2.5 border-b border-border flex items-center gap-2">
+        <h2 className="text-sm font-semibold flex-1 px-1">Candidaturas</h2>
+        <button type="button" aria-label="Fechar" onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
+        {/* Candidatura registrada pelo usuário */}
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-semibold leading-5">Gerente Administrativo Financeiro</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Sicoob Dom Eliseu · Dom Eliseu, PA</p>
+            <p className="text-[11px] text-muted-foreground mt-1.5">
+              Inscrito em <span className="font-medium text-foreground">21 jun. 2026</span>
+            </p>
+          </div>
+          <div className="px-4 py-3 space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1.5">Como está o processo?</label>
+              <div className="relative">
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full h-9 border border-border rounded-lg bg-transparent text-sm px-3 pr-8 appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                >
+                  {STATUS_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-4">
+                Você controla esse registro — o EmpregaCOOP não tem acesso ao processo da cooperativa.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground text-center pt-2">Sem outras candidaturas registradas.</p>
+      </div>
+    </aside>
+  );
+}
+
+function CursosPanel({ coursePreset, onClose }: { coursePreset: CoursePreset | null; onClose?: () => void }) {
+  const c2done = coursePreset === "done";
+  const c2progress = coursePreset === "progress";
+
+  const courses = [
+    {
+      label: "Cooperativismo - Primeiras Lições",
+      hours: "4H",
+      status: "done" as const,
+      desc: "Curso introdutório ao modelo cooperativo — obrigatório para todas as vagas do CapacitaCOOP.",
+    },
+    {
+      label: "Gestão Estratégica de Finanças em Cooperativas",
+      hours: "13H",
+      status: c2done ? "done" as const : c2progress ? "progress" as const : "idle" as const,
+      desc: "Cobre planejamento financeiro, análise de resultados e gestão orçamentária no contexto cooperativo.",
+    },
+  ];
+
+  const doneCount = courses.filter(c => c.status === "done").length;
+
+  return (
+    <aside className="flex flex-col h-full overflow-hidden bg-card border-l border-border">
+      <div className="flex-none px-3 pt-3 pb-2.5 border-b border-border flex items-center gap-2">
+        <h2 className="text-sm font-semibold flex-1 px-1">Cursos</h2>
+        <button type="button" aria-label="Fechar" onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Resumo */}
+      <div className="flex-none px-4 py-3 border-b border-border flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">CapacitaCOOP</p>
+        <span className="text-xs font-semibold text-success">{doneCount}/{courses.length} concluídos</span>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
+        {courses.map((course) => {
+          const isDone = course.status === "done";
+          const isProgress = course.status === "progress";
+          return (
+            <div key={course.label}
+              className={`rounded-2xl border bg-card overflow-hidden ${
+                isDone ? "border-success/35" : isProgress ? "border-primary/30 shadow-sm" : "border-border"
+              }`}
+            >
+              <div className="flex items-start gap-3 px-3 py-3">
+                <span className={`w-8 h-8 flex items-center justify-center rounded-lg flex-none mt-0.5 ${
+                  isDone ? "bg-success-soft text-success" :
+                  isProgress ? "bg-primary/10 text-primary" :
+                  "bg-muted text-muted-foreground"
+                }`}>
+                  {isDone ? <CheckCircle className="w-4 h-4" /> :
+                   isProgress ? <RefreshCw className="w-4 h-4" /> :
+                   <GraduationCap className="w-4 h-4" />}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold leading-5">{course.label}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" />{course.hours}
+                    </span>
+                    {isDone && (
+                      <span className="inline-flex items-center gap-0.5 h-4 px-1.5 rounded-full bg-success-soft text-success text-[10px] font-semibold">
+                        <Check className="w-2.5 h-2.5" />Concluído
+                      </span>
+                    )}
+                    {isProgress && (
+                      <span className="inline-flex items-center h-4 px-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+                        Em andamento
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">{course.desc}</p>
+                </div>
+              </div>
+              {!isDone && (
+                <div className="px-3 pb-3 pt-0">
+                  <button type="button"
+                    className={`inline-flex items-center gap-1 h-7 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                      isProgress
+                        ? "border border-primary/30 bg-primary/8 text-primary hover:bg-primary/12"
+                        : "border border-border text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {isProgress ? "Continuar" : "Começar"} <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => void; initialView?: "curriculo" | "emprecard" }) {
+  const [view, setView] = useState<"curriculo" | "emprecard" | "emprecard-edit">(initialView);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<string[]>(["identidade", "essencia", "historia"]);
 
@@ -222,78 +610,16 @@ function ProfilePanel({ onClose }: { onClose?: () => void }) {
 
   return (
     <aside
-      className="flex flex-col overflow-hidden bg-card border-l border-border"
+      className="flex flex-col h-full overflow-hidden bg-card border-l border-border"
       aria-label="Painel do candidato"
     >
-      {view === "summary" ? (
-        <>
-          {/* Panel header */}
-          <div className="flex-none px-3 pt-3 pb-2.5 border-b border-border flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold px-1">Meu perfil</h2>
-            <button type="button" aria-label="Recolher painel" data-tooltip="Recolher" data-tooltip-dir="left" onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Summary cards */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
-            {/* Currículo card */}
-            <button type="button" onClick={() => setView("curriculo")}
-              className="w-full rounded-2xl border border-border bg-card p-4 shadow-sm text-left hover:shadow-md transition-shadow group">
-              <div className="flex items-center justify-between mb-2.5">
-                <h3 className="text-sm font-semibold">Currículo</h3>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-              </div>
-              <p className="text-base font-medium">Bolivar Alencastro</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Brasília, DF · +55 48 984138601</p>
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-4">Product Designer · 8 experiências · Bacharel em Design Gráfico</p>
-              <div className="flex items-center gap-2 mt-3">
-                <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full bg-success-soft text-success text-xs font-medium">
-                  <Check className="w-3 h-3" /> 7 completas
-                </span>
-                <span className="inline-flex items-center h-5 px-2 rounded-full bg-muted text-muted-foreground text-xs">2 pendentes</span>
-              </div>
-            </button>
-
-            {/* Emprecard card */}
-            <button type="button" onClick={() => setView("emprecard")}
-              className="w-full rounded-2xl border border-border overflow-hidden text-left hover:shadow-md transition-shadow group">
-              <div className="w-full h-1 bg-orange" />
-              <div className="p-4 bg-card">
-                <div className="flex items-center justify-between mb-2.5">
-                  <h3 className="text-sm font-semibold">Emprecard</h3>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-                </div>
-                <p className="text-sm font-medium leading-5 line-clamp-1">Profissional de tecnologia, produto e dados</p>
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">Designer de Produto com foco em UX, automação e transformação digital</p>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {["UX", "Design Thinking", "UI", "Figma"].map((s) => (
-                    <span key={s} className="inline-flex items-center h-5 px-2 rounded-full text-xs font-medium"
-                      style={{ background: "rgba(255,144,71,.12)", color: "#ff9047" }}>{s}</span>
-                  ))}
-                  <span className="inline-flex items-center h-5 px-1 text-xs text-muted-foreground">+19</span>
-                </div>
-                <div className="flex items-center gap-2 mt-3">
-                  <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                    <Star className="w-3 h-3 fill-current" /> Padrão
-                  </span>
-                </div>
-              </div>
-            </button>
-          </div>
-        </>
-      ) : view === "curriculo" ? (
+      {view === "curriculo" ? (
         <>
           <div className="flex items-center gap-2 px-3 pt-3 pb-2.5 flex-none border-b border-border">
-            <button type="button" aria-label="Voltar" data-tooltip="Voltar" onClick={() => { setView("summary"); setEditingSection(null); }}
+            <h2 className="text-sm font-semibold flex-1 px-1">Perfil</h2>
+            <button type="button" aria-label="Fechar painel" data-tooltip="Fechar" data-tooltip-dir="down-left" onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <h2 className="text-sm font-semibold flex-1">Currículo</h2>
-            <button type="button" aria-label="Recolher painel" data-tooltip="Recolher" data-tooltip-dir="left" onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
-              <ChevronRight className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
@@ -426,30 +752,25 @@ function ProfilePanel({ onClose }: { onClose?: () => void }) {
       ) : view === "emprecard" ? (
         <>
           <div className="flex items-center gap-2 px-3 pt-3 pb-2.5 flex-none border-b border-border">
-            <button type="button" aria-label="Voltar" data-tooltip="Voltar" onClick={() => setView("summary")}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <h2 className="text-sm font-semibold flex-1">Emprecard</h2>
-            <button type="button" aria-label="Editar Emprecard" data-tooltip="Editar" data-tooltip-dir="left" onClick={() => setView("emprecard-edit")}
+            <h2 className="text-sm font-semibold flex-1 px-1">EmpreCard</h2>
+            <button type="button" aria-label="Editar EmpreCard" data-tooltip="Editar" data-tooltip-dir="down-left" onClick={() => setView("emprecard-edit")}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
               <Pencil className="w-4 h-4" />
             </button>
-            <button type="button" aria-label="Recolher painel" data-tooltip="Recolher" data-tooltip-dir="left" onClick={onClose}
+            <button type="button" aria-label="Fechar painel" data-tooltip="Fechar" data-tooltip-dir="down-left" onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
-              <ChevronRight className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="mx-3 mt-3 rounded-2xl border border-border overflow-hidden">
-              <div className="w-full h-1.5 bg-orange" />
               <div className="px-4 pt-4 pb-3"
                 style={{ background: "linear-gradient(135deg, #FF904728 0%, #FF904708 60%, transparent 100%)" }}>
                 <p className="text-sm font-semibold leading-5">Profissional de tecnologia, produto e dados</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Designer de Produto com foco em UX, automação e transformação digital</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Brasília, Distrito Federal</p>
                 <p className="text-xs italic leading-4 mt-2" style={{ color: "#ff9047" }}>
-                  "Tecnologia, produto e dados como eixo principal. Gosta de resolver problemas com automação e IA. Busca oportunidades remotas, híbridas ou em projetos nacionais."
+                  &ldquo;Tecnologia, produto e dados como eixo principal. Gosta de resolver problemas com automação e IA. Busca oportunidades remotas, híbridas ou em projetos nacionais.&rdquo;
                 </p>
               </div>
               <div className="px-4 py-3 flex flex-col gap-3 border-t border-border">
@@ -497,12 +818,12 @@ function ProfilePanel({ onClose }: { onClose?: () => void }) {
       ) : (
         <>
           <div className="flex items-center gap-2 px-3 pt-3 pb-2.5 flex-none border-b border-border">
-            <button type="button" aria-label="Voltar" data-tooltip="Voltar" onClick={() => setView("emprecard")}
+            <button type="button" aria-label="Voltar" data-tooltip="Voltar" data-tooltip-dir="down" onClick={() => setView("emprecard")}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
               <ChevronLeft className="w-4 h-4" />
             </button>
             <h2 className="text-sm font-semibold flex-1">Editar Emprecard</h2>
-            <button type="button" aria-label="Recolher painel" data-tooltip="Recolher" data-tooltip-dir="left" onClick={onClose}
+            <button type="button" aria-label="Recolher painel" data-tooltip="Recolher" data-tooltip-dir="down-left" onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -601,6 +922,205 @@ function ProfilePanel({ onClose }: { onClose?: () => void }) {
   );
 }
 
+type UploadState = "idle" | "uploading" | "done";
+
+function CvUploadCard() {
+  const [uploadState, setUploadState] = useState<UploadState>("idle");
+
+  function handleUpload() {
+    setUploadState("uploading");
+    setTimeout(() => setUploadState("done"), 1500);
+  }
+
+  if (uploadState === "idle") {
+    return (
+      <div className="mt-3 rounded-2xl border border-border bg-card overflow-hidden shadow-sm max-w-[min(420px,100%)]">
+        <div
+          onClick={handleUpload}
+          className="m-3 rounded-xl border-2 border-dashed border-border hover:border-primary/40 cursor-pointer transition-colors px-6 py-7 flex flex-col items-center gap-2 text-center"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/8 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-primary" />
+          </div>
+          <p className="text-sm font-medium text-foreground">Arraste seu arquivo aqui</p>
+          <p className="text-xs text-primary underline">ou clique para selecionar</p>
+          <p className="text-xs text-muted-foreground">PDF ou DOCX · Máx. 10MB</p>
+        </div>
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={handleUpload}
+            className="w-full h-8 rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Continuar sem currículo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (uploadState === "uploading") {
+    return (
+      <div className="mt-3 rounded-2xl border border-border bg-card overflow-hidden shadow-sm max-w-[min(420px,100%)]">
+        <div className="p-4 flex items-center gap-3">
+          <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-primary/10 flex-none">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Enviando currículo...</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Bolivar_Alencastro_Designer.pdf</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-border bg-card overflow-hidden shadow-sm max-w-[min(420px,100%)]">
+      <div className="p-3 border-b border-border">
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-success-border bg-success-soft">
+          <span className="w-8 h-8 flex items-center justify-center rounded-lg bg-success/15 flex-none">
+            <FileText className="w-4 h-4 text-success" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-success leading-4">Currículo enviado</p>
+            <p className="text-xs text-success/70 mt-0.5">Bolivar_Alencastro_Designer.pdf</p>
+          </div>
+          <CheckCircle className="w-4 h-4 text-success flex-none" />
+        </div>
+      </div>
+      <div className="px-4 py-3">
+        <p className="text-xs font-semibold text-primary mb-2">Análise da IA concluída ✨</p>
+        <div className="space-y-1.5">
+          {["Experiências identificadas", "Principais habilidades mapeadas", "Resumo profissional gerado"].map((item) => (
+            <div key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreferencesCard() {
+  const [submitted, setSubmitted] = useState(false);
+  const [values, setValues] = useState({
+    local: "Híbrido",
+    area: "Tecnologia e Produto",
+    nivel: "Sênior",
+    tipo: "Qualquer",
+  });
+
+  const fields: { key: keyof typeof values; label: string; options: string[] }[] = [
+    { key: "local", label: "Onde prefere trabalhar?", options: ["Remoto", "Híbrido", "Presencial", "Flexível"] },
+    { key: "area", label: "Qual área você busca?", options: ["Tecnologia e Produto", "Financeiro", "Gestão e Administração", "Saúde", "Educação"] },
+    { key: "nivel", label: "Nível de experiência", options: ["Júnior", "Pleno", "Sênior", "Especialista"] },
+    { key: "tipo", label: "Tipo de cooperativa", options: ["Qualquer", "Crédito", "Saúde", "Trabalho / TI", "Agronegócio"] },
+  ];
+
+  if (!submitted) {
+    return (
+      <article className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm mt-3 max-w-[min(420px,100%)]">
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-sm font-semibold">Suas preferências de trabalho</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Assim encontramos vagas muito mais alinhadas.</p>
+        </div>
+        <div className="px-4 py-3 space-y-3">
+          {fields.map((f) => (
+            <div key={f.key} className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">{f.label}</label>
+              <div className="relative">
+                <select
+                  value={values[f.key]}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  className="w-full h-9 border border-border rounded-lg bg-transparent text-sm px-3 pr-8 appearance-none focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                >
+                  {f.options.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-4 pb-4 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setSubmitted(true)}
+            className="w-full h-10 rounded-xl bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            Continuar
+          </button>
+          <button
+            type="button"
+            onClick={() => setSubmitted(true)}
+            className="w-full h-8 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Pular por enquanto
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm mt-3 max-w-[min(420px,100%)]">
+      <div className="px-4 py-3 border-b border-border">
+        <p className="text-sm font-semibold">Suas preferências</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Usaremos isso para filtrar as vagas mais alinhadas.</p>
+      </div>
+      <div className="divide-y divide-border">
+        {fields.map((f) => (
+          <div key={f.key} className="flex items-start justify-between gap-3 px-4 py-2.5">
+            <p className="text-xs text-muted-foreground">{f.label}</p>
+            <p className="text-xs font-semibold text-foreground text-right max-w-[55%]">{values[f.key]}</p>
+          </div>
+        ))}
+      </div>
+      <div className="px-4 py-2.5 border-t border-border bg-success-soft/60 flex items-center gap-2">
+        <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
+        <p className="text-xs font-semibold text-success">Preferências registradas</p>
+      </div>
+    </article>
+  );
+}
+
+function MatchResultsCard() {
+  return (
+    <article className="rounded-2xl border border-primary/20 bg-card overflow-hidden shadow-sm mt-3 max-w-[min(420px,100%)]">
+      <div className="px-4 py-3 border-b border-primary/15 bg-brand-soft/40">
+        <p className="text-xs font-semibold text-primary uppercase tracking-wide">Vagas encontradas para você</p>
+      </div>
+      <div className="px-4 py-4">
+        <div className="grid grid-cols-3 gap-4 text-center mb-4">
+          <div>
+            <p className="text-2xl font-bold text-primary">247</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-4">vagas em cooperativas</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-primary">92%</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-4">match médio</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-primary">+320</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-4">cooperativas ativas</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-success-soft border border-success-border">
+          <CheckCircle className="w-4 h-4 text-success flex-none mt-0.5" />
+          <p className="text-xs text-success leading-[18px]">
+            <span className="font-semibold">Dica rápida:</span>{" "}
+            Você pode refinar tudo isso ao longo da nossa conversa.
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function FileAttachment() {
   return (
     <div className="inline-flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-sm mt-1">
@@ -615,37 +1135,70 @@ function FileAttachment() {
   );
 }
 
+const JOBS = [
+  { title: "Gerente Administrativo Financeiro", city: "Dom Eliseu", state: "PA" },
+  { title: "Analista de Produtos Digitais",     city: "Brasília",   state: "DF" },
+  { title: "Coordenador de Inovação e IA",      city: "São Paulo",  state: "SP" },
+] as const;
+
 function OpportunitiesCard() {
+  const [applied, setApplied] = useState<string | null>(null);
+
+  function handleApply(jobTitle: string) {
+    setApplied(jobTitle);
+    localStorage.setItem("proto_stage", "18");
+    window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 18 } }));
+  }
+
   return (
-    <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4">
+    <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
         <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
           <Zap className="w-3.5 h-3.5" />
         </span>
         <div className="min-w-0">
           <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Oportunidades pra você</p>
-          <p className="text-base font-medium truncate">Vagas compatíveis com seu perfil</p>
+          <p className="text-sm font-medium">Vagas compatíveis com seu perfil</p>
         </div>
       </div>
-      <div className="p-3">
-        <button
-          type="button"
-          className="w-full text-left rounded-xl border border-primary/20 bg-primary/4 px-4 py-3 hover:bg-primary/8 transition-colors group"
-        >
-          <p className="text-base font-semibold text-foreground">Gerente Administrativo Financeiro</p>
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
-            <span>📍 Dom Eliseu / PA</span>
-            <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />
-            <span>1 vaga disponível</span>
-          </div>
-          <p className="text-xs text-primary mt-1.5 font-medium group-hover:underline">Ver cursos pré-requisito →</p>
-        </button>
+      <div className="divide-y divide-border/60">
+        {JOBS.map((job) => {
+          const isApplied = applied === job.title;
+          return (
+            <div key={job.title} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground leading-5">{job.title}</p>
+                <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                  <MapPin className="w-3 h-3 flex-none" />
+                  <span>{job.city} / {job.state}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleApply(job.title)}
+                disabled={applied !== null}
+                className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
+                  isApplied
+                    ? "border border-success/40 bg-success-soft text-success"
+                    : applied !== null
+                    ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
+                    : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
+                }`}
+              >
+                {isApplied
+                  ? <><Check className="w-3 h-3" /><span>Enviada</span></>
+                  : <><span>Candidatar-se</span><ArrowRight className="w-3 h-3" /></>
+                }
+              </button>
+            </div>
+          );
+        })}
       </div>
     </article>
   );
 }
 
-function EmpreCardMessage() {
+function EmpreCardMessage({ onOpen }: { onOpen: () => void }) {
   return (
     <article className="rounded-[18px] border border-primary/15 bg-card overflow-hidden shadow-sm mt-4">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-orange/5">
@@ -669,13 +1222,14 @@ function EmpreCardMessage() {
         </div>
       </div>
       <div className="flex justify-end px-4 py-3 border-t border-primary/10 bg-white">
-        <Link
-          href="/emprecards/1"
+        <button
+          type="button"
+          onClick={onOpen}
           className="inline-flex items-center gap-2 min-h-8 px-3 rounded-lg border border-primary/16 bg-white text-foreground text-xs font-medium shadow-sm hover:bg-muted transition-colors"
         >
           Ver Emprecard salvo
           <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
+        </button>
       </div>
     </article>
   );
@@ -686,6 +1240,9 @@ function PrereqCard() {
   const [courseStatus, setCourseStatus] = useState<Record<string, CourseStatus>>(
     () => statusFromPreset(null)
   );
+  function handleDownload() {
+    generateCurriculoPdf();
+  }
 
   useEffect(() => {
     function readPreset() {
@@ -701,7 +1258,14 @@ function PrereqCard() {
   function advanceCourse(label: string) {
     setCourseStatus(prev => {
       const cur = prev[label] ?? "idle";
-      return { ...prev, [label]: cur === "idle" ? "progress" : "done" };
+      const next: CourseStatus = cur === "idle" ? "progress" : "done";
+      const newStatus = { ...prev, [label]: next };
+      if (label === C2) {
+        const preset: CoursePreset = next === "done" ? "done" : "progress";
+        localStorage.setItem("proto_courses", preset);
+        window.dispatchEvent(new CustomEvent("proto-update", { detail: {} }));
+      }
+      return newStatus;
     });
   }
 
@@ -726,11 +1290,14 @@ function PrereqCard() {
   const pendingCount = courses.filter(c => c.status !== "done").length;
 
   return (
-    <article className="rounded-2xl border border-primary/20 bg-brand-soft/40 overflow-hidden mt-4">
-      <div className="px-4 py-3 border-b border-primary/12 bg-brand-soft/30">
-        <div className="flex items-center gap-2 text-primary text-xs font-semibold uppercase tracking-wide">
+    <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
+        <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
           <GraduationCap className="w-3.5 h-3.5" />
-          Pré-requisitos · Gerente Administrativo Financeiro
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Pré-requisitos</p>
+          <p className="text-sm font-medium truncate">Gerente Administrativo Financeiro</p>
         </div>
       </div>
 
@@ -742,19 +1309,17 @@ function PrereqCard() {
           return (
             <div
               key={c.label}
-              className={`rounded-xl border bg-white overflow-hidden transition-shadow ${
-                isDone ? "border-success/45" : isProgress ? "border-primary/40 shadow-sm" : isOpen ? "border-primary/30 shadow-sm" : "border-primary/8"
+              className={`rounded-xl border bg-card overflow-hidden ${
+                isDone ? "border-success/35" : isProgress ? "border-primary/30 shadow-sm" : "border-border"
               }`}
             >
-              {/* Row — always visible */}
               <button
                 type="button"
                 onClick={() => setExpanded(isOpen ? null : c.label)}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-muted/30 transition-colors"
               >
-                {/* Status icon */}
                 <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-none ${
-                  isDone ? "bg-success-soft text-success" : isProgress ? "bg-primary text-white" : "bg-brand-soft text-primary"
+                  isDone ? "bg-success-soft text-success" : isProgress ? "bg-primary/12 text-primary" : "bg-muted text-muted-foreground"
                 }`}>
                   {isDone ? <CheckCircle className="w-3 h-3" /> : isProgress ? <RefreshCw className="w-3 h-3" /> : c.num}
                 </span>
@@ -778,7 +1343,6 @@ function PrereqCard() {
                   </div>
                 </div>
 
-                {/* CTA — 3 states */}
                 {isDone ? (
                   <span
                     role="button"
@@ -791,7 +1355,7 @@ function PrereqCard() {
                   <span
                     role="button"
                     onClick={(e) => { e.stopPropagation(); advanceCourse(c.label); }}
-                    className="flex-none h-7 px-2.5 rounded-lg bg-primary/90 text-white text-xs font-semibold hover:bg-primary transition-colors flex items-center gap-1"
+                    className="flex-none h-7 px-2.5 rounded-lg border border-primary/30 bg-primary/8 text-primary text-xs font-semibold hover:bg-primary/12 transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     Continuar <ArrowRight className="w-3 h-3" />
                   </span>
@@ -799,14 +1363,13 @@ function PrereqCard() {
                   <span
                     role="button"
                     onClick={(e) => { e.stopPropagation(); advanceCourse(c.label); }}
-                    className="flex-none h-7 px-2.5 rounded-lg bg-primary text-white text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-1"
+                    className="flex-none h-7 px-2.5 rounded-lg border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/8 transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     Começar <ArrowRight className="w-3 h-3" />
                   </span>
                 )}
               </button>
 
-              {/* Expanded details */}
               {isOpen && (
                 <div className="px-3 pb-3 border-t border-border/50">
                   <p className="text-sm text-muted-foreground leading-relaxed mt-2.5 mb-2">{c.desc}</p>
@@ -823,36 +1386,51 @@ function PrereqCard() {
       </div>
 
       {allDone ? (
-        <div className="mx-3 mb-3 p-3.5 rounded-2xl border border-success-border bg-success-soft">
-          <div className="flex items-center gap-2.5 text-[#106f4a] text-sm font-semibold">
-            <CheckCircle className="w-4 h-4" />
+        <div className="border-t border-success/25 bg-success-soft px-4 py-3.5">
+          <div className="flex items-center gap-2 text-success text-sm font-semibold">
+            <CheckCircle className="w-4 h-4 flex-none" />
             Todos os pré-requisitos concluídos — vaga liberada!
           </div>
-          <p className="mt-1.5 ml-[26px] text-xs text-[#106f4a]/84 leading-[18px]">
-            Parabéns! Você completou todos os cursos obrigatórios e pode se candidatar.
+          <p className="mt-1 ml-6 text-xs text-success/70 leading-relaxed">
+            Você completou todos os cursos e pode se candidatar.
           </p>
-          <a
-            href="#"
-            className="ml-[26px] mt-3 inline-flex items-center gap-2 min-h-[38px] px-3.5 rounded-xl bg-[#0d9b6c] text-white border-2 border-primary/50 text-xs font-semibold hover:opacity-90 transition-opacity"
-          >
-            <Briefcase className="w-3.5 h-3.5" />
-            Candidatar-se à vaga
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          <div className="ml-6 mt-3 flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-card text-muted-foreground text-xs font-medium hover:bg-muted transition-colors"
+            >
+              <Download className="w-3 h-3" />Baixar currículo
+            </button>
+            <a
+              href="/ats-vaga"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
+                if (cur <= 18) {
+                  localStorage.setItem("proto_stage", "19");
+                  localStorage.setItem("proto_mode", "animated");
+                  window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 19, mode: "animated" } }));
+                }
+              }}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-success/40 bg-card text-success text-xs font-semibold hover:bg-success/8 transition-colors"
+            >
+              Candidatar-se à vaga <ArrowRight className="w-3 h-3" />
+            </a>
+          </div>
         </div>
       ) : (
-        <div className="mx-3 mb-3 p-3.5 rounded-2xl border border-border bg-muted/20">
-          <div className="flex items-center gap-2.5 text-muted-foreground text-sm font-semibold">
-            <Lock className="w-4 h-4" />
+        <div className="border-t border-border px-4 py-3.5">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
+            <Lock className="w-3.5 h-3.5 flex-none" />
             {pendingCount} curso{pendingCount !== 1 ? "s" : ""} pendente{pendingCount !== 1 ? "s" : ""} para liberar a candidatura
           </div>
-          <p className="mt-1.5 ml-[26px] text-xs text-muted-foreground leading-[18px]">
-            Conclua todos os cursos acima para se candidatar a esta vaga.
+          <p className="mt-1 ml-[22px] text-xs text-muted-foreground/60 leading-relaxed">
+            Conclua todos os cursos acima para se candidatar.
           </p>
-          <span className="ml-[26px] mt-3 inline-flex items-center gap-2 min-h-[38px] px-3.5 rounded-xl bg-muted border border-border text-muted-foreground/40 text-xs font-semibold cursor-not-allowed select-none">
-            <Briefcase className="w-3.5 h-3.5" />
-            Candidatar-se à vaga
-            <ArrowRight className="w-3.5 h-3.5" />
+          <span className="ml-[22px] mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border text-muted-foreground/40 text-xs font-semibold cursor-not-allowed select-none">
+            Candidatar-se à vaga <ArrowRight className="w-3 h-3" />
           </span>
         </div>
       )}
@@ -860,21 +1438,141 @@ function PrereqCard() {
   );
 }
 
+function ApplicationStatusCard() {
+  return (
+    <article className="rounded-2xl border border-success/30 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-success/20 bg-success-soft/60">
+        <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-success/15 text-success flex-none">
+          <CheckCircle className="w-3.5 h-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Candidatura registrada</p>
+          <p className="text-sm font-medium truncate">Gerente Administrativo Financeiro</p>
+        </div>
+      </div>
+      <div className="px-4 py-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-muted-foreground mb-0.5">Cooperativa</p>
+            <p className="font-semibold">Sicoob Dom Eliseu</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground mb-0.5">Data</p>
+            <p className="font-medium">21 jun. 2026</p>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground leading-4">
+          Acompanhe o processo diretamente com a cooperativa. Você pode atualizar o status desta candidatura no seu histórico.
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function ProfileReactivationCard() {
+  const actions = [
+    { Icon: Pencil, label: "Atualizar EmpreCard", sub: "Adicionar novos projetos e habilidades" },
+    { Icon: GraduationCap, label: "Explorar novos cursos", sub: "2 cursos novos disponíveis no CapacitaCOOP" },
+    { Icon: Briefcase, label: "Ver novas vagas", sub: "3 vagas ainda mais aderentes encontradas" },
+  ] as const;
+
+  return (
+    <article className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm mt-3 max-w-[min(420px,100%)]">
+      <div className="px-4 py-3 border-b border-border bg-brand-soft/30">
+        <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Enquanto você aguarda</p>
+        <p className="text-sm font-medium">Fortaleça seu perfil agora</p>
+      </div>
+      <div className="p-3 space-y-2">
+        {actions.map(({ Icon, label, sub }) => (
+          <button
+            key={label}
+            type="button"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border hover:bg-muted/50 transition-colors text-left"
+          >
+            <span className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary/10 text-primary flex-none">
+              <Icon className="w-3.5 h-3.5" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold leading-5">{label}</p>
+              <p className="text-xs text-muted-foreground leading-4">{sub}</p>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground flex-none" />
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+const JOBS_REACTIVATION = [
+  { title: "Coordenador de Produtos Digitais", city: "Brasília", state: "DF" },
+  { title: "Analista de Transformação Digital", city: "Florianópolis", state: "SC" },
+  { title: "Gerente de Inovação e Tecnologia", city: "Porto Alegre", state: "RS" },
+] as const;
+
+function ReactivationOpportunitiesCard() {
+  const [applied, setApplied] = useState<string | null>(null);
+
+  return (
+    <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
+        <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
+          <RefreshCw className="w-3.5 h-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Novas vagas para você</p>
+          <p className="text-sm font-medium">Perfil recalculado · 3 matches</p>
+        </div>
+      </div>
+      <div className="divide-y divide-border/60">
+        {JOBS_REACTIVATION.map((job) => {
+          const isApplied = applied === job.title;
+          return (
+            <div key={job.title} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground leading-5">{job.title}</p>
+                <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                  <MapPin className="w-3 h-3 flex-none" />
+                  <span>{job.city} / {job.state}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApplied(job.title)}
+                disabled={applied !== null}
+                className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
+                  isApplied
+                    ? "border border-success/40 bg-success-soft text-success"
+                    : applied !== null
+                    ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
+                    : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
+                }`}
+              >
+                {isApplied
+                  ? <><Check className="w-3 h-3" /><span>Enviada</span></>
+                  : <><span>Candidatar-se</span><ArrowRight className="w-3 h-3" /></>
+                }
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
 /* ── Proto constants ───────────────────────────────────────────────────── */
 
-// 'ai' or 'user' for each of the 15 messages
-const MSG_TYPES = ["ai","user","ai","user","ai","user","ai","ai","user","ai","user","ai","ai","user","ai"] as const;
+// 'ai' or 'user' for each of the 24 messages
+const MSG_TYPES = ["ai","user","ai","ai","ai","ai","user","ai","user","ai","ai","user","ai","user","ai","ai","user","ai","ai","user","ai","ai","user","ai"] as const;
 // ms to pause before revealing each message (for AI msgs: this precedes the typing indicator)
-const MSG_DELAYS = [0,1200,600,1200,600,1200,600,800,1200,600,1200,1000,1000,1200,700];
+const MSG_DELAYS = [0,1200,600,700,800,600,1200,600,1200,600,800,1200,600,1200,1000,1000,1200,700,1400,1000,700,1600,1200,700];
 const TYPING_MS = 1100; // how long the typing indicator shows
 
 function TypingIndicator() {
   return (
     <div className="flex items-start gap-3 animate-[proto-fade-in_0.2s_ease-out]">
-      <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="" className="w-full h-full object-cover" />
-      </span>
+      <AIAvatar />
       <div className="flex items-center gap-1 rounded-2xl bg-muted px-4 py-3.5 mt-1">
         <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:0ms]" />
         <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:120ms]" />
@@ -887,30 +1585,89 @@ function TypingIndicator() {
 /* ── Page ──────────────────────────────────────────────────────────────── */
 
 export default function AssistentePage() {
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
   const [voiceMode, setVoiceMode] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<null | "curriculo" | "emprecard" | "journey" | "vagas" | "cursos">(null);
+  const [commandsOpen, setCommandsOpen] = useState(false);
+  const commandsRef = useRef<HTMLDivElement>(null);
+  const [activeCommand, setActiveCommand] = useState<string | null>(null);
+  const [contextText, setContextText] = useState("");
+  const [rawInput, setRawInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   /* ── Proto playback state ── */
   const [visibleCount, setVisibleCount] = useState(PROTO_TOTAL);
   const [protoMode, setProtoMode] = useState<ProtoMode>("complete");
   const [isTyping, setIsTyping] = useState(false);
+  const [coursePreset, setCoursePreset] = useState<CoursePreset | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Inline slash-command detection: fires when rawInput is exactly "/word" (no space yet)
+  const inlineSlashMatch = !activeCommand ? rawInput.match(/^\/(\w*)$/) : null;
+  const inlineQuery = inlineSlashMatch ? inlineSlashMatch[1].toLowerCase() : null;
+  const filteredCmds = inlineQuery !== null
+    ? COMMAND_ITEMS.filter(({ cmd }) => cmd.slice(1).startsWith(inlineQuery))
+    : COMMAND_ITEMS;
+  const showCommandPicker = commandsOpen || (inlineQuery !== null && filteredCmds.length > 0);
+
+  function selectCommand(cmd: string) {
+    setActiveCommand(cmd);
+    setRawInput("");
+    setCommandsOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  function clearCommand() {
+    setActiveCommand(null);
+    setContextText("");
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value;
+    if (!activeCommand) {
+      // Detect "/validcmd <space>" typed inline → activate command mode
+      const cmdSpaceMatch = val.match(/^(\/\w+)\s([\s\S]*)$/);
+      if (cmdSpaceMatch) {
+        const [, cmd, rest] = cmdSpaceMatch;
+        if (COMMAND_ITEMS.some(({ cmd: c }) => c === cmd)) {
+          setActiveCommand(cmd);
+          setContextText(rest);
+          setRawInput("");
+          return;
+        }
+      }
+      setRawInput(val);
+    } else {
+      setContextText(val);
+    }
+  }
 
   // Read proto state from localStorage on mount + listen for updates
   useEffect(() => {
     function read() {
       const s = localStorage.getItem("proto_stage");
       const m = localStorage.getItem("proto_mode") as ProtoMode | null;
+      const cp = localStorage.getItem("proto_courses") as CoursePreset | null;
       const count = s !== null ? parseInt(s) : PROTO_TOTAL;
       const mode = m ?? "complete";
       setVisibleCount(count);
       setProtoMode(mode);
       setIsTyping(false);
+      setCoursePreset(cp);
     }
     read();
     window.addEventListener("proto-update", read);
     return () => window.removeEventListener("proto-update", read);
+  }, []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (commandsRef.current && !commandsRef.current.contains(e.target as Node)) {
+        setCommandsOpen(false);
+      }
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
   }, []);
 
   // Animated playback: reveal one message at a time with delays
@@ -922,10 +1679,7 @@ export default function AssistentePage() {
     const isNextAI = MSG_TYPES[nextIdx] === "ai";
     const pause = MSG_DELAYS[nextIdx];
 
-    let t1: ReturnType<typeof setTimeout>;
-    let t2: ReturnType<typeof setTimeout>;
-
-    t1 = setTimeout(() => {
+    const t1: ReturnType<typeof setTimeout> = setTimeout(() => {
       if (isNextAI) {
         setIsTyping(true);
         t2 = setTimeout(() => {
@@ -936,9 +1690,12 @@ export default function AssistentePage() {
         setVisibleCount((c) => c + 1);
       }
     }, pause);
+    let t2: ReturnType<typeof setTimeout>;
 
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [visibleCount, protoMode]);
+
+  const aiProgress = getProfileProgress(visibleCount);
 
   // Auto-scroll to bottom when new messages appear or typing indicator shows
   useEffect(() => {
@@ -947,49 +1704,18 @@ export default function AssistentePage() {
 
   return (
     <div className="h-dvh flex flex-col overflow-hidden">
-      <Topbar />
+      <Topbar
+        onOpenProfile={() => setDrawerMode("curriculo")}
+        onOpenEmpreCard={() => setDrawerMode("emprecard")}
+        onOpenJourney={() => setDrawerMode("journey")}
+        onOpenJobs={() => setDrawerMode("vagas")}
+        onOpenCourses={() => setDrawerMode("cursos")}
+        profileProgress={aiProgress}
+      />
 
-      <main className="flex-1 min-h-0 overflow-hidden">
-        <div
-          className="h-full grid overflow-hidden transition-all"
-          style={{
-            gridTemplateColumns: leftOpen
-              ? rightOpen ? "348px minmax(0,1fr) 336px" : "348px minmax(0,1fr)"
-              : rightOpen ? "minmax(0,1fr) 336px" : "minmax(0,1fr)",
-          }}
-        >
-          {/* Left — Journey */}
-          {leftOpen ? (
-            <JourneyPanel count={visibleCount} onClose={() => setLeftOpen(false)} />
-          ) : null}
-
-          {/* Center — Chat */}
-          <section className="relative flex flex-col min-w-0 min-h-0 bg-background" aria-label="Assistente EmpregaCOOP">
-            {/* Edge buttons to reopen collapsed panels */}
-            {!leftOpen && (
-              <button
-                type="button"
-                onClick={() => setLeftOpen(true)}
-                aria-label="Abrir jornada"
-                data-tooltip="Abrir jornada"
-                data-tooltip-dir="right"
-                className="absolute left-3 top-3 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-card border border-border shadow-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
-            {!rightOpen && (
-              <button
-                type="button"
-                onClick={() => setRightOpen(true)}
-                aria-label="Abrir painel do perfil"
-                data-tooltip="Abrir perfil"
-                data-tooltip-dir="left"
-                className="absolute right-3 top-3 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-card border border-border shadow-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            )}
+      <main className="flex-1 min-h-0 overflow-hidden relative">
+        {/* Chat — full width */}
+        <section className="h-full flex flex-col min-w-0 bg-background relative" aria-label="Assistente EmpregaCOOP">
             {/* Voice overlay */}
             {voiceMode && (
               <div className="absolute inset-0 z-20 bg-background flex flex-col">
@@ -1066,10 +1792,7 @@ export default function AssistentePage() {
 
                 {/* M0 — AI: Boas-vindas */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
@@ -1077,8 +1800,7 @@ export default function AssistentePage() {
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
                       <p className="mb-2">Oi, tudo bem? Sou sua entrevistadora aqui na EmpregaCOOP. Vou conversar com você por uns 20 minutos pra entender seu perfil profissional — isso vai alimentar seu cadastro para vagas em cooperativas e cursos do CapacitaCOOP.</p>
-                      <p className="mb-2">Se você tiver um currículo em PDF aí à mão, pode anexar pelo clipe aqui embaixo — é opcional, mas adianta bastante o que eu ia te perguntar.</p>
-                      <p><strong>Antes da gente começar: como posso te chamar?</strong></p>
+                      <p><strong>Antes de tudo: como posso te chamar?</strong></p>
                     </div>
                   </div>
                 </article>
@@ -1092,30 +1814,70 @@ export default function AssistentePage() {
                     <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
                       Pode me chamar de Bolivar.
                     </div>
-                    <FileAttachment />
                   </div>
-                  <span className="w-8 h-8 flex-none rounded-full overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-                  </span>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
                 </article>
 
-                {/* ── ETAPA 3 PERFIL: DADOS PESSOAIS → LOCALIZAÇÃO ── */}
+                {/* ── INTERAÇÃO: PREFERÊNCIAS E VAGAS INICIAIS ── */}
 
-                {/* AI: Confirma currículo + pede localização */}
+                {/* NEW M2 — AI: Pedindo currículo */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>10:04</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Prazer, Bolivar! Se você tiver um currículo em PDF, pode enviar aqui — isso adianta bastante as próximas perguntas. Mas pode continuar sem ele também.</p>
+                    </div>
+                    <CvUploadCard />
+                  </div>
+                </article>
+
+                {/* NEW M4 — AI: Preferências de trabalho */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>10:04</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Antes de continuar, me conta suas preferências de trabalho — isso ajuda a encontrar as vagas mais alinhadas com o seu momento.</p>
+                    </div>
+                    <PreferencesCard />
+                  </div>
+                </article>
+
+                {/* NEW M5 — AI: Vagas encontradas */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
                       <span>10:05</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p className="mb-2">Perfeito, Bolivar! Recebi seu currículo — já consigo ver uma trajetória de 8 experiências em design, produto e arte. Vou usar isso como referência enquanto a gente conversa.</p>
-                      <p><strong>Pra começar: em que cidade e estado você mora hoje?</strong></p>
+                      <p>Já encontrei vagas compatíveis com você. Vamos continuar construindo seu perfil para aumentar ainda mais esse número.</p>
+                    </div>
+                    <MatchResultsCard />
+                  </div>
+                </article>
+
+                {/* ── ETAPA 3 PERFIL: DADOS PESSOAIS → LOCALIZAÇÃO ── */}
+
+                {/* AI: Confirma currículo + pede localização */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>10:05</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p className="mb-2">Ótimo! Já tenho seu currículo e suas preferências — consigo ver uma trajetória de 8 experiências em design, produto e arte, com foco em tecnologia e nível sênior. Vou usar tudo isso como base.</p>
+                      <p><strong>Só falta uma coisa: em que cidade e estado você mora hoje?</strong></p>
                     </div>
                   </div>
                 </article>
@@ -1127,31 +1889,25 @@ export default function AssistentePage() {
                       <span>10:07</span>
                     </div>
                     <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
-                      Moro em Brasília, Distrito Federal. Prefiro trabalho remoto ou híbrido, mas tenho disponibilidade pra projetos nacionais com viagens pontuais.
+                      Moro em Brasília, Distrito Federal.
                     </div>
                   </div>
-                  <span className="w-8 h-8 flex-none rounded-full overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-                  </span>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
                 </article>
 
                 {/* ── ETAPA 3 PERFIL: OBJETIVO PROFISSIONAL ──────── */}
 
                 {/* AI: Confirma localização + pede objetivo */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
                       <span>10:08</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p className="mb-2">Anotado. Brasília, DF — remoto ou híbrido, com mobilidade nacional.</p>
-                      <p><strong>Agora me conta: qual é sua área principal de atuação e o que você busca como próximo passo na carreira?</strong></p>
+                      <p className="mb-2">Anotado, Brasília DF.</p>
+                      <p><strong>Me conta: qual é sua área principal de atuação e o que você busca como próximo passo na carreira?</strong></p>
                     </div>
                   </div>
                 </article>
@@ -1163,21 +1919,15 @@ export default function AssistentePage() {
                       <span>10:09</span>
                     </div>
                     <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
-                      Minha área principal é tecnologia, produto digital, dados e automação com IA. Busco oportunidades em cooperativas que estejam passando por transformação digital — remoto ou híbrido.
+                      Minha área principal é tecnologia, produto digital, dados e automação com IA. Busco oportunidades em cooperativas que estejam passando por transformação digital.
                     </div>
                   </div>
-                  <span className="w-8 h-8 flex-none rounded-full overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-                  </span>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
                 </article>
 
                 {/* AI: Confirma objetivo + transição para experiência */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
@@ -1194,10 +1944,7 @@ export default function AssistentePage() {
 
                 {/* Assistant message 1 */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
@@ -1221,18 +1968,12 @@ export default function AssistentePage() {
                       Trabalhei com estratégia digital, desenvolvimento de produtos, automação, análise de dados e integrações em projetos de transformação digital.
                     </div>
                   </div>
-                  <span className="w-8 h-8 flex-none rounded-full overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-                  </span>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
                 </article>
 
                 {/* Assistant message 2 */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
@@ -1255,18 +1996,12 @@ export default function AssistentePage() {
                       Atuei em projetos de produto e operações, organizando backlog, integrações, automações e análises para tomada de decisão. Meu foco era simplificar processos e aumentar velocidade de entrega.
                     </div>
                   </div>
-                  <span className="w-8 h-8 flex-none rounded-full overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-                  </span>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
                 </article>
 
                 {/* Assistant message 3 — EmpreCard */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
@@ -1275,7 +2010,7 @@ export default function AssistentePage() {
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
                       <p>Pronto! Seu Emprecard foi gerado.</p>
                     </div>
-                    <EmpreCardMessage />
+                    <EmpreCardMessage onOpen={() => setDrawerMode("emprecard")} />
                   </div>
                 </article>
 
@@ -1283,10 +2018,7 @@ export default function AssistentePage() {
 
                 {/* AI: Oportunidades + vagas */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
@@ -1309,18 +2041,12 @@ export default function AssistentePage() {
                       Quero saber mais sobre Gerente Administrativo Financeiro.
                     </div>
                   </div>
-                  <span className="w-8 h-8 flex-none rounded-full overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-                  </span>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
                 </article>
 
                 {/* AI: Cursos pré-requisito */}
                 <article className="flex items-start gap-3">
-                  <span className="w-8 h-8 flex-none rounded-full bg-primary overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://b2c.empregacoop.xyz/brand/empregacoop-mark.png" alt="EmpregaCOOP" className="w-full h-full object-cover" />
-                  </span>
+                  <AIAvatar />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
                       <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
@@ -1330,6 +2056,96 @@ export default function AssistentePage() {
                       <p>Perfeito. Aqui estão os cursos pra você se preparar para essa família de vaga.</p>
                     </div>
                     <PrereqCard />
+                  </div>
+                </article>
+
+                {/* ── ETAPA 6: PÓS-CANDIDATURA ─────────────── */}
+
+                {/* M18 — AI: Confirma que viu a candidatura */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>10:43</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Vi que você selecionou a vaga de Gerente Administrativo Financeiro. Conseguiu concluir a inscrição na plataforma da cooperativa?</p>
+                    </div>
+                  </div>
+                </article>
+
+                {/* M19 — User: Confirmação */}
+                <article className="flex items-start gap-3 justify-end">
+                  <div className="min-w-0 flex-1 flex flex-col items-end">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground justify-end">
+                      <span>10:44</span>
+                    </div>
+                    <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
+                      Sim, enviei! Foi bem tranquilo.
+                    </div>
+                  </div>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                </article>
+
+                {/* M20 — AI: Candidatura registrada */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>10:44</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Ótimo! Registrei sua candidatura no EmpregaCOOP para manter o rastreio e atribuição de origem.</p>
+                    </div>
+                    <ApplicationStatusCard />
+                  </div>
+                </article>
+
+                {/* ── ETAPA 7: REATIVAÇÃO ────────────────────── */}
+
+                {/* M22 — AI: Reativação */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>Hoje · 09:15</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p className="mb-2">Oi, Bolivar! A cooperativa ainda está em triagem — é normal levar alguns dias.</p>
+                      <p>Enquanto isso, que tal usar esse tempo para fortalecer seu perfil e aumentar suas chances em outras vagas também?</p>
+                    </div>
+                    <ProfileReactivationCard />
+                  </div>
+                </article>
+
+                {/* M23 — User: Pede novas vagas */}
+                <article className="flex items-start gap-3 justify-end">
+                  <div className="min-w-0 flex-1 flex flex-col items-end">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground justify-end">
+                      <span>09:17</span>
+                    </div>
+                    <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
+                      Pode mostrar outras vagas compatíveis com meu perfil enquanto aguardo?
+                    </div>
+                  </div>
+                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                </article>
+
+                {/* M24 — AI: Novas vagas */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>09:17</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Claro! Com seu perfil atualizado, encontrei novas vagas que combinam muito com você.</p>
+                    </div>
+                    <ReactivationOpportunitiesCard />
                   </div>
                 </article>
 
@@ -1350,7 +2166,6 @@ export default function AssistentePage() {
 
                 {/* Dynamic CSS: hide articles beyond visibleCount */}
                 {visibleCount < PROTO_TOTAL && (
-                  // eslint-disable-next-line react/no-danger
                   <style dangerouslySetInnerHTML={{ __html:
                     `@keyframes proto-fade-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}` +
                     `.proto-messages>article:nth-child(n+${visibleCount+1}){display:none!important}` +
@@ -1362,21 +2177,96 @@ export default function AssistentePage() {
 
               </div>
               </div>
-              {/* Fade gradient so messages dissolve into the composer */}
+              {/* Top fade — messages dissolve in from under the header */}
+              <div className="pointer-events-none absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-background to-transparent z-10" />
+              {/* Bottom fade — messages dissolve into the composer */}
               <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background to-transparent" />
             </div>
 
             {/* Composer */}
             <form className="flex-none px-4 pt-0 pb-3">
               <div className="max-w-[820px] mx-auto">
-                <div className="flex items-center gap-2 min-h-14 border border-primary/50 rounded-[18px] bg-white px-2.5 py-2 shadow-sm">
-                  <button type="button" aria-label="Anexar currículo (PDF)" data-tooltip="Anexar currículo" className="w-9 h-9 flex items-center justify-center rounded-xl text-foreground hover:bg-muted transition-colors flex-none">
-                    <Paperclip className="w-4 h-4" />
-                  </button>
+                <div className={`flex items-center gap-2 min-h-14 border rounded-[18px] bg-white px-2.5 py-2 shadow-sm transition-colors ${activeCommand ? "border-primary/80 ring-1 ring-primary/20" : "border-primary/50"}`}>
+                  {/* Commands / actions button */}
+                  <div className="relative flex-none" ref={commandsRef}>
+                    <button
+                      type="button"
+                      aria-label="Ações"
+                      aria-expanded={showCommandPicker}
+                      onClick={(e) => { e.stopPropagation(); setCommandsOpen((o) => !o); }}
+                      className={`w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
+                        showCommandPicker ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <Wand2 className="w-4 h-4" />
+                    </button>
+
+                    {showCommandPicker && (
+                      <div className="absolute bottom-full left-0 mb-2 w-72 rounded-2xl border border-border bg-card shadow-lg overflow-hidden z-10">
+                        <div className="px-3 py-2 border-b border-border">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {inlineQuery !== null ? "Comandos" : "Ações"}
+                          </p>
+                        </div>
+                        <div className="py-1">
+                          {filteredCmds.map(({ cmd, Icon, desc, href }) =>
+                            href ? (
+                              <Link
+                                key={cmd}
+                                href={href}
+                                onClick={() => setCommandsOpen(false)}
+                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted"
+                              >
+                                <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-muted/80 flex-none">
+                                  <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-mono font-semibold text-primary leading-4">{cmd}</p>
+                                  <p className="text-xs text-muted-foreground leading-4 mt-0.5">{desc}</p>
+                                </div>
+                              </Link>
+                            ) : (
+                              <button
+                                key={cmd}
+                                type="button"
+                                onClick={() => selectCommand(cmd)}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors text-left"
+                              >
+                                <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-muted/80 flex-none">
+                                  <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-mono font-semibold text-primary leading-4">{cmd}</p>
+                                  <p className="text-xs text-muted-foreground leading-4 mt-0.5">{desc}</p>
+                                </div>
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Active command chip */}
+                  {activeCommand && (
+                    <span className="inline-flex items-center gap-1 h-7 pl-2 pr-1.5 rounded-lg bg-primary/10 text-primary text-sm font-mono font-semibold flex-none">
+                      {activeCommand}
+                      <button
+                        type="button"
+                        aria-label="Cancelar comando"
+                        onClick={clearCommand}
+                        className="w-4 h-4 flex items-center justify-center rounded text-primary/50 hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
                   <textarea
+                    ref={textareaRef}
                     aria-label="Mensagem para o assistente"
-                    placeholder="Conte para a EmpregaCOOP sobre você..."
+                    placeholder={activeCommand ? `Descreva o que deseja...` : "Conte para a EmpregaCOOP sobre você..."}
                     rows={1}
+                    value={activeCommand ? contextText : rawInput}
+                    onChange={handleInputChange}
                     className="flex-1 min-w-0 min-h-9 max-h-28 border-0 resize-none outline-none bg-transparent text-foreground placeholder:text-muted-foreground/60 text-sm leading-5 py-2"
                   />
                   <button
@@ -1405,18 +2295,28 @@ export default function AssistentePage() {
             </form>
           </section>
 
-          {/* Right — Profile */}
-          {rightOpen ? (
-            <ProfilePanel onClose={() => setRightOpen(false)} />
-          ) : null}
-        </div>
-
-        {/* Backdrop for mobile drawers */}
-        {(leftOpen || rightOpen) && (
-          <div
-            className="fixed inset-0 bg-foreground/25 z-30 md:hidden"
-            onClick={() => { setLeftOpen(false); setRightOpen(false); }}
-          />
+        {/* Right drawer — on demand */}
+        {drawerMode && (
+          <div className="fixed inset-0 z-50 overflow-hidden sm:inset-auto sm:top-2 sm:right-2 sm:bottom-2 sm:w-[336px] sm:rounded-2xl sm:shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
+            {drawerMode === "journey" ? (
+              <ProgressPanel
+                count={visibleCount}
+                coursePreset={coursePreset}
+                progress={aiProgress}
+                onClose={() => setDrawerMode(null)}
+              />
+            ) : drawerMode === "vagas" ? (
+              <VagasPanel onClose={() => setDrawerMode(null)} />
+            ) : drawerMode === "cursos" ? (
+              <CursosPanel coursePreset={coursePreset} onClose={() => setDrawerMode(null)} />
+            ) : (
+              <ProfilePanel
+                key={drawerMode}
+                initialView={drawerMode as "curriculo" | "emprecard"}
+                onClose={() => setDrawerMode(null)}
+              />
+            )}
+          </div>
         )}
       </main>
     </div>

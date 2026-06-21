@@ -30,6 +30,7 @@ export default function EmpreCardDetail() {
                   href="/emprecards"
                   aria-label="Voltar para a lista"
                   data-tooltip="Voltar"
+                  data-tooltip-dir="down"
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-foreground hover:bg-muted transition-colors flex-none"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -46,7 +47,7 @@ export default function EmpreCardDetail() {
                     type="button"
                     aria-label="Mais ações"
                     data-tooltip="Mais ações"
-                    data-tooltip-dir="left"
+                    data-tooltip-dir="down-left"
                     aria-haspopup="menu"
                     aria-expanded={menuOpen}
                     onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }}
@@ -107,7 +108,7 @@ export default function EmpreCardDetail() {
                     </div>
                   </div>
                   <p className="mt-5 text-base font-medium italic" style={{ color: "#ff9047" }}>
-                    "Atua com estratégia digital, desenvolvimento de produtos, análise de dados e integrações, buscando oportunidades remotas, híbridas em Brasília e projetos nacionais."
+                    &ldquo;Atua com estratégia digital, desenvolvimento de produtos, análise de dados e integrações, buscando oportunidades remotas, híbridas em Brasília e projetos nacionais.&rdquo;
                   </p>
                 </header>
 

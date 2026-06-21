@@ -1,43 +1,59 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Settings2, RotateCcw, Play, StepForward, Layers } from "lucide-react";
+import {
+  Settings2, RotateCcw, Play, StepForward, Layers,
+  LogIn, BookOpen, MessageSquare, ChevronRight,
+} from "lucide-react";
 
-export const PROTO_TOTAL = 15;
+export const PROTO_TOTAL = 24;
 
 export type CoursePreset = "initial" | "progress" | "done";
 
 export const PROTO_STAGES = [
-  { label: "Chat vazio", count: 0 },
   { label: "Boas-vindas da IA", count: 1 },
-  { label: "Nome respondido", count: 3 },
-  { label: "Localização e currículo", count: 5 },
-  { label: "Objetivo profissional", count: 7 },
-  { label: "Experiência detalhada", count: 11 },
-  { label: "EmpreCard gerado", count: 12 },
-  { label: "Vagas compatíveis", count: 13 },
-  { label: "Pré-requisitos · curso", count: 15 },
+  { label: "Nome respondido", count: 2 },
+  { label: "Currículo solicitado", count: 3 },
+  { label: "Preferências coletadas", count: 4 },
+  { label: "Vagas encontradas", count: 5 },
+  { label: "Localização confirmada", count: 8 },
+  { label: "Objetivo profissional", count: 10 },
+  { label: "Experiência detalhada", count: 14 },
+  { label: "EmpreCard gerado", count: 15 },
+  { label: "Vagas compatíveis", count: 16 },
+  { label: "Pré-requisitos · curso", count: 18 },
+  { label: "Candidatura confirmada", count: 21 },
+  { label: "Reativação · retorno", count: 22 },
+  { label: "Nova candidatura", count: 24 },
+] as const;
+
+const PAGES = [
+  { label: "Login",        path: "/entrar",      Icon: LogIn },
+  { label: "Onboarding",  path: "/onboarding",   Icon: BookOpen },
+  { label: "Assistente",  path: "/assistente",   Icon: MessageSquare },
+  { label: "Fluxogramas", path: "/fluxogramas",  Icon: Layers },
 ] as const;
 
 export type ProtoMode = "complete" | "animated" | "manual";
 
 export function ProtoControls() {
   const [open, setOpen] = useState(false);
-  const [stage, setStage] = useState(PROTO_TOTAL);
-  const [mode, setMode] = useState<ProtoMode>("complete");
-  const [coursePreset, setCoursePreset] = useState<CoursePreset>("initial");
+  const [stage, setStage] = useState(() => {
+    if (typeof window === "undefined") return PROTO_TOTAL;
+    const value = window.localStorage.getItem("proto_stage");
+    return value !== null ? parseInt(value, 10) : PROTO_TOTAL;
+  });
+  const [mode, setMode] = useState<ProtoMode>(() => {
+    if (typeof window === "undefined") return "complete";
+    return (window.localStorage.getItem("proto_mode") as ProtoMode | null) ?? "complete";
+  });
+  const [coursePreset, setCoursePreset] = useState<CoursePreset>(() => {
+    if (typeof window === "undefined") return "initial";
+    return (window.localStorage.getItem("proto_courses") as CoursePreset | null) ?? "initial";
+  });
   const router = useRouter();
   const pathname = usePathname();
-
-  useEffect(() => {
-    const s = localStorage.getItem("proto_stage");
-    const m = localStorage.getItem("proto_mode") as ProtoMode | null;
-    const cp = localStorage.getItem("proto_courses") as CoursePreset | null;
-    if (s !== null) setStage(parseInt(s));
-    if (m) setMode(m);
-    if (cp) setCoursePreset(cp);
-  }, []);
 
   function selectCoursePreset(preset: CoursePreset) {
     localStorage.setItem("proto_courses", preset);
@@ -60,14 +76,17 @@ export function ProtoControls() {
   }
 
   function selectStage(count: number) {
-    // Selecting a specific stage while in "complete" mode switches to "manual"
-    // so the user can see the exact cut-off point and advance from there
     const effectiveMode = mode === "complete" && count < PROTO_TOTAL ? "manual" : mode;
     dispatch(count, effectiveMode);
   }
 
   function selectMode(m: ProtoMode) {
     dispatch(stage, m);
+  }
+
+  function navigateTo(path: string) {
+    router.push(path);
+    setOpen(false);
   }
 
   function reset() {
@@ -79,6 +98,14 @@ export function ProtoControls() {
     setOpen(false);
   }
 
+  function isCurrentPage(path: string) {
+    if (path === "/emprecards/1/editar") return pathname.includes("/editar");
+    if (path === "/emprecards/1") return !!pathname.match(/\/emprecards\/[^/]+$/) && !pathname.includes("/editar");
+    if (path === "/emprecards") return pathname === "/emprecards";
+    if (path === "/assistente") return pathname.startsWith("/assistente");
+    return pathname === path;
+  }
+
   const modes: { id: ProtoMode; label: string; icon: React.ReactNode }[] = [
     { id: "complete", label: "Completo", icon: <Layers className="w-3 h-3" /> },
     { id: "animated", label: "Animado", icon: <Play className="w-3 h-3" /> },
@@ -88,9 +115,9 @@ export function ProtoControls() {
   return (
     <div className="fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2">
       {open && (
-        <div className="w-[240px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="w-[260px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: "min(600px, 85dvh)" }}>
           {/* Header */}
-          <div className="px-3 py-2 border-b border-border bg-muted/40 flex items-center justify-between">
+          <div className="flex-none px-3 py-2 border-b border-border bg-muted/40 flex items-center justify-between">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Protótipo
             </p>
@@ -102,87 +129,118 @@ export function ProtoControls() {
             </button>
           </div>
 
-          {/* Mode */}
-          <div className="px-3 pt-2.5 pb-2 border-b border-border">
-            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
-              Modo
-            </p>
-            <div className="grid grid-cols-3 gap-1">
-              {modes.map((m) => (
+          {/* Scrollable body */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+
+            {/* Telas — navigate to any page */}
+            <div className="px-3 pt-2.5 pb-2 border-b border-border">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
+                Telas
+              </p>
+              <div className="space-y-0.5">
+                {PAGES.map(({ label, path, Icon }) => {
+                  const current = isCurrentPage(path);
+                  return (
+                    <button
+                      key={path}
+                      onClick={() => navigateTo(path)}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left ${
+                        current
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5 flex-none" />
+                      <span className="flex-1">{label}</span>
+                      {current && <ChevronRight className="w-3 h-3 opacity-50" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modo do assistente */}
+            <div className="px-3 pt-2.5 pb-2 border-b border-border">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
+                Modo do assistente
+              </p>
+              <div className="grid grid-cols-3 gap-1">
+                {modes.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => selectMode(m.id)}
+                    className={`flex items-center justify-center gap-1 h-7 rounded-lg text-[11px] font-medium transition-colors ${
+                      mode === m.id
+                        ? "bg-primary text-white shadow-sm"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {m.icon}
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Etapa do chat */}
+            <div className="py-1 border-b border-border">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide px-3 pt-1.5 pb-1">
+                Etapa do chat
+              </p>
+              {PROTO_STAGES.map((s) => (
                 <button
-                  key={m.id}
-                  onClick={() => selectMode(m.id)}
-                  className={`flex items-center justify-center gap-1 h-7 rounded-lg text-[11px] font-medium transition-colors ${
-                    mode === m.id
-                      ? "bg-primary text-white shadow-sm"
-                      : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                  key={s.count}
+                  onClick={() => selectStage(s.count)}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/40 ${
+                    stage === s.count ? "text-primary" : "text-foreground"
                   }`}
                 >
-                  {m.icon}
-                  {m.label}
+                  <span
+                    className={`w-2 h-2 rounded-full flex-none border-[1.5px] transition-colors ${
+                      stage === s.count
+                        ? "bg-primary border-primary"
+                        : "border-muted-foreground/35"
+                    }`}
+                  />
+                  <span className="text-xs">{s.label}</span>
+                  {stage === s.count && (
+                    <span className="ml-auto text-[10px] text-primary/70 font-medium">
+                      atual
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Stage selector */}
-          <div className="py-1">
-            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide px-3 pt-1.5 pb-1">
-              Pular para etapa
-            </p>
-            {PROTO_STAGES.map((s) => (
-              <button
-                key={s.count}
-                onClick={() => selectStage(s.count)}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/40 ${
-                  stage === s.count ? "text-primary" : "text-foreground"
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full flex-none border-[1.5px] transition-colors ${
-                    stage === s.count
-                      ? "bg-primary border-primary"
-                      : "border-muted-foreground/35"
-                  }`}
-                />
-                <span className="text-xs">{s.label}</span>
-                {stage === s.count && (
-                  <span className="ml-auto text-[10px] text-primary/70 font-medium">
-                    atual
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Course preset */}
-          <div className="px-3 pt-2.5 pb-2 border-t border-border">
-            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
-              Pré-requisitos
-            </p>
-            <div className="grid grid-cols-3 gap-1">
-              {([
-                { id: "initial" as CoursePreset, label: "Bloqueado" },
-                { id: "progress" as CoursePreset, label: "Andamento" },
-                { id: "done" as CoursePreset, label: "Liberado" },
-              ]).map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => selectCoursePreset(p.id)}
-                  className={`flex items-center justify-center h-7 rounded-lg text-[11px] font-medium transition-colors ${
-                    coursePreset === p.id
-                      ? "bg-primary text-white shadow-sm"
-                      : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
+            {/* Pré-requisitos */}
+            <div className="px-3 pt-2.5 pb-2">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
+                Pré-requisitos
+              </p>
+              <div className="grid grid-cols-3 gap-1">
+                {([
+                  { id: "initial" as CoursePreset, label: "Bloqueado" },
+                  { id: "progress" as CoursePreset, label: "Andamento" },
+                  { id: "done" as CoursePreset, label: "Liberado" },
+                ]).map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => selectCoursePreset(p.id)}
+                    className={`flex items-center justify-center h-7 rounded-lg text-[11px] font-medium transition-colors ${
+                      coursePreset === p.id
+                        ? "bg-primary text-white shadow-sm"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Reset */}
-          <div className="px-2 py-2 border-t border-border">
+          {/* Reset — pinned to bottom */}
+          <div className="flex-none px-2 py-2 border-t border-border">
             <button
               onClick={reset}
               className="w-full flex items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-medium text-destructive hover:bg-destructive/8 transition-colors"

@@ -92,6 +92,7 @@ export default function EmpreCardEdit() {
                   href="/emprecards/1"
                   aria-label="Voltar para visualização"
                   data-tooltip="Voltar"
+                  data-tooltip-dir="down"
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-foreground hover:bg-muted transition-colors flex-none"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -117,7 +118,7 @@ export default function EmpreCardEdit() {
                     type="button"
                     aria-label="Mais ações"
                     data-tooltip="Mais ações"
-                    data-tooltip-dir="left"
+                    data-tooltip-dir="down-left"
                     aria-haspopup="menu"
                     aria-expanded={menuOpen}
                     onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }}
