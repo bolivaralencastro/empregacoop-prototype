@@ -2267,7 +2267,7 @@ export default function AssistentePage() {
                     rows={1}
                     value={activeCommand ? contextText : rawInput}
                     onChange={handleInputChange}
-                    className="flex-1 min-w-0 min-h-9 max-h-28 border-0 resize-none outline-none bg-transparent text-foreground placeholder:text-muted-foreground/60 text-sm leading-5 py-2"
+                    className="flex-1 min-w-0 min-h-9 max-h-28 border-0 resize-none outline-none bg-transparent text-foreground placeholder:text-muted-foreground/60 placeholder:whitespace-nowrap text-sm leading-5 py-2"
                   />
                   <button
                     type="button"
