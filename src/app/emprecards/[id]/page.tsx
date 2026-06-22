@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Star, Pencil, Trash2, MapPin, Clock, Wrench, Lightbulb, Briefcase } from "lucide-react";
-import { Topbar } from "@/components/layout/topbar";
+import { TopbarA } from "@/components/layout/topbar-a";
 
 export default function EmpreCardDetail() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -19,7 +19,7 @@ export default function EmpreCardDetail() {
 
   return (
     <div className="h-dvh flex flex-col overflow-hidden">
-      <Topbar />
+      <TopbarA activeSection="emprecards" />
       <main className="flex-1 min-h-0 overflow-y-auto">
         <div className="w-full max-w-[800px] mx-auto px-4 py-8">
           <div className="flex flex-col gap-4">

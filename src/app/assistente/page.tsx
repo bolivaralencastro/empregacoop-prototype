@@ -30,9 +30,11 @@ import {
   User,
   MapPin,
   Download,
+  LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
+import { TopbarA } from "@/components/layout/topbar-a";
 import { generateCurriculoPdf } from "@/lib/generateCurriculoPdf";
 
 const COMMAND_ITEMS: { cmd: string; Icon: LucideIcon; desc: string; href?: string }[] = [
@@ -153,87 +155,50 @@ function AIAvatar() {
   );
 }
 
-function UserAvatar({ progress, onOpen }: { progress: number; onOpen?: () => void }) {
-  const prevRef = useRef(progress);
-  const [pulsing, setPulsing] = useState(false);
-
-  useEffect(() => {
-    if (progress <= prevRef.current) { prevRef.current = progress; return; }
-    prevRef.current = progress;
-    setPulsing(true);
-    const t = setTimeout(() => setPulsing(false), 700);
-    return () => clearTimeout(t);
-  }, [progress]);
-
-  const size = 36;
-  const sw = 2.5;
-  const r = (size - sw) / 2;
-  const circ = 2 * Math.PI * r;
-  const dashOffset = circ * (1 - progress / 100);
-
+function UserAvatar() {
   return (
-    <span
-      className={`relative flex-none${pulsing ? " avatar-pop" : ""}${onOpen ? " cursor-pointer" : ""}`}
-      style={{ width: size, height: size }}
-      onClick={onOpen}
-      role={onOpen ? "button" : undefined}
-      aria-label={onOpen ? `Ver progresso — ${progress}% completo` : undefined}
-      data-tooltip={onOpen ? `${progress}% completo` : undefined}
-      data-tooltip-dir="left"
-    >
-      <svg
-        className="absolute inset-0 -rotate-90"
-        width={size}
-        height={size}
-        style={{ overflow: "visible" }}
-      >
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={sw} />
-        {progress > 0 && (
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke="var(--success)"
-            strokeWidth={sw}
-            strokeDasharray={circ}
-            strokeDashoffset={dashOffset}
-            strokeLinecap="round"
-            className={pulsing ? "arc-glow" : ""}
-            style={{ transition: "stroke-dashoffset 0.7s cubic-bezier(0.4, 0, 0.2, 1)" }}
-          />
-        )}
-      </svg>
-      <span className="absolute rounded-full overflow-hidden" style={{ inset: sw + 2 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-      </span>
+    <span className="w-9 h-9 flex-none rounded-full overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
     </span>
   );
 }
 
 /* ── Sub-components ────────────────────────────────────────────────────── */
 
-function JourneyPanel({ count, coursePreset, onClose }: { count: number; coursePreset: CoursePreset | null; onClose?: () => void }) {
+function JourneyPanel({ count, coursePreset, progress, onClose }: { count: number; coursePreset: CoursePreset | null; progress?: number; onClose?: () => void }) {
   return (
     <aside
-      className="flex flex-col overflow-hidden bg-card border-r border-border"
+      className="flex flex-col w-full overflow-hidden bg-card border-r border-border"
       aria-label="Sua jornada"
     >
       {/* Header */}
       <div className="flex-none px-3 pt-3 pb-2.5 border-b border-border flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold px-1">Jornada</h2>
-        <button
-          type="button"
-          aria-label="Recolher jornada"
-          data-tooltip="Recolher"
-          data-tooltip-dir="down"
-          onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
+        <h2 className="text-sm font-semibold px-1">Sua jornada</h2>
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Recolher jornada"
+            data-tooltip="Recolher"
+            data-tooltip-dir="down"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
       </div>
+      {progress !== undefined && (
+        <div className="flex-none px-4 py-2.5 border-b border-border">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[11px] font-medium text-muted-foreground">Perfil preenchido</p>
+            <span className="text-[11px] font-bold text-success">{progress}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className="h-full rounded-full bg-success transition-all duration-700" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* Steps */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-0.5">
@@ -601,6 +566,7 @@ function CursosPanel({ coursePreset, onClose }: { coursePreset: CoursePreset | n
 
 function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => void; initialView?: "curriculo" | "emprecard" }) {
   const [view, setView] = useState<"curriculo" | "emprecard" | "emprecard-edit">(initialView);
+  const [empreCardTab, setEmpreCardTab] = useState<"base" | "match-cards">("base");
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<string[]>(["identidade", "essencia", "historia"]);
 
@@ -617,10 +583,12 @@ function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => 
         <>
           <div className="flex items-center gap-2 px-3 pt-3 pb-2.5 flex-none border-b border-border">
             <h2 className="text-sm font-semibold flex-1 px-1">Perfil</h2>
-            <button type="button" aria-label="Fechar painel" data-tooltip="Fechar" data-tooltip-dir="down-left" onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
-              <X className="w-4 h-4" />
-            </button>
+            {onClose && (
+              <button type="button" aria-label="Fechar painel" data-tooltip="Fechar" data-tooltip-dir="down-left" onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
             {/* Sobre você */}
@@ -752,67 +720,122 @@ function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => 
       ) : view === "emprecard" ? (
         <>
           <div className="flex items-center gap-2 px-3 pt-3 pb-2.5 flex-none border-b border-border">
-            <h2 className="text-sm font-semibold flex-1 px-1">EmpreCard</h2>
-            <button type="button" aria-label="Editar EmpreCard" data-tooltip="Editar" data-tooltip-dir="down-left" onClick={() => setView("emprecard-edit")}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button type="button" aria-label="Fechar painel" data-tooltip="Fechar" data-tooltip-dir="down-left" onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex-1 px-1 min-w-0">
+              <h2 className="text-sm font-semibold leading-tight">EmpreCard</h2>
+              <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Currículo 2.0 — dinâmico e atualizado</p>
+            </div>
+            {empreCardTab === "base" && (
+              <button type="button" aria-label="Editar EmpreCard" data-tooltip="Editar" data-tooltip-dir="down-left" onClick={() => setView("emprecard-edit")}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+            {onClose && (
+              <button type="button" aria-label="Fechar painel" data-tooltip="Fechar" data-tooltip-dir="down-left" onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-none">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {/* Tab switcher */}
+          <div className="flex-none flex gap-1 px-3 pt-2.5 pb-0">
+            {(["base", "match-cards"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setEmpreCardTab(tab)}
+                className={`h-7 px-3 rounded-full text-xs font-medium transition-all ${empreCardTab === tab ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                {tab === "base" ? "EmpreCard" : (
+                  <span className="flex items-center gap-1.5">Match Cards <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px] font-bold">1</span></span>
+                )}
+              </button>
+            ))}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="mx-3 mt-3 rounded-2xl border border-border overflow-hidden">
-              <div className="px-4 pt-4 pb-3"
-                style={{ background: "linear-gradient(135deg, #FF904728 0%, #FF904708 60%, transparent 100%)" }}>
-                <p className="text-sm font-semibold leading-5">Profissional de tecnologia, produto e dados</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Designer de Produto com foco em UX, automação e transformação digital</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Brasília, Distrito Federal</p>
-                <p className="text-xs italic leading-4 mt-2" style={{ color: "#ff9047" }}>
-                  &ldquo;Tecnologia, produto e dados como eixo principal. Gosta de resolver problemas com automação e IA. Busca oportunidades remotas, híbridas ou em projetos nacionais.&rdquo;
-                </p>
-              </div>
-              <div className="px-4 py-3 flex flex-col gap-3 border-t border-border">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Essência</p>
-                  <p className="text-xs leading-4 italic pl-2 border-l-2" style={{ borderColor: "#ff9047", color: "rgba(36,0,40,.80)" }}>
-                    Tecnologia, produto e dados como eixo principal. Gosta de resolver problemas com automação e IA. Busca oportunidades remotas, híbridas ou em projetos nacionais.
+            {empreCardTab === "base" ? (
+              <div className="mx-3 mt-3 rounded-2xl border border-border overflow-hidden">
+                <div className="px-4 pt-4 pb-3"
+                  style={{ background: "linear-gradient(135deg, #FF904728 0%, #FF904708 60%, transparent 100%)" }}>
+                  <p className="text-sm font-semibold leading-5">Profissional de tecnologia, produto e dados</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Designer de Produto com foco em UX, automação e transformação digital</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Brasília, Distrito Federal</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/40 mt-2">Currículo 2.0</p>
+                  <p className="text-xs italic leading-4 mt-1" style={{ color: "#ff9047" }}>
+                    &ldquo;Tecnologia, produto e dados como eixo principal. Gosta de resolver problemas com automação e IA. Busca oportunidades remotas, híbridas ou em projetos nacionais.&rdquo;
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Minha história</p>
-                  <p className="text-xs leading-4" style={{ color: "rgba(36,0,40,.80)" }}>
-                    Bolivar se posiciona na interseção entre tecnologia, produto digital, dados e automação com IA. Ele busca oportunidades em cooperativas e quer atuar em contextos onde estratégia digital, desenvolvimento de produtos e análise de dados tenham papel central. Prefere trabalho remoto ou híbrido em Brasília, com abertura para projetos nacionais.
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Resumo profissional</p>
-                  <p className="text-xs leading-4" style={{ color: "rgba(36,0,40,.80)" }}>
-                    Product Designer com 8 experiências em tecnologia, produto e dados. Atuou como Diretor de Arte, Designer Gráfico e Product Designer. Busca cooperativas e contextos de impacto prático.
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Skills · 8 experiências</p>
-                  <div className="flex flex-wrap gap-1">
-                    {["Experiência do Usuário (UX)", "Design Thinking", "Design de Interface (UI)", "Prototipação de Alta Fidelidade", "Mapeamento de Jornada", "Pesquisa de Usuário"].map((s) => (
-                      <span key={s} className="inline-flex items-center h-5 px-2 rounded-full text-xs font-medium"
-                        style={{ background: "rgba(255,144,71,.12)", color: "#ff9047" }}>{s}</span>
-                    ))}
-                    <span className="inline-flex items-center h-5 px-1 text-xs text-muted-foreground">+19</span>
+                <div className="px-4 py-3 flex flex-col gap-3 border-t border-border">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Essência</p>
+                    <p className="text-xs leading-4 italic pl-2 border-l-2" style={{ borderColor: "#ff9047", color: "rgba(36,0,40,.80)" }}>
+                      Tecnologia, produto e dados como eixo principal. Gosta de resolver problemas com automação e IA. Busca oportunidades remotas, híbridas ou em projetos nacionais.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Minha história</p>
+                    <p className="text-xs leading-4" style={{ color: "rgba(36,0,40,.80)" }}>
+                      Bolivar se posiciona na interseção entre tecnologia, produto digital, dados e automação com IA. Ele busca oportunidades em cooperativas e quer atuar em contextos onde estratégia digital, desenvolvimento de produtos e análise de dados tenham papel central. Prefere trabalho remoto ou híbrido em Brasília, com abertura para projetos nacionais.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Resumo profissional</p>
+                    <p className="text-xs leading-4" style={{ color: "rgba(36,0,40,.80)" }}>
+                      Product Designer com 8 experiências em tecnologia, produto e dados. Atuou como Diretor de Arte, Designer Gráfico e Product Designer. Busca cooperativas e contextos de impacto prático.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Skills · 8 experiências</p>
+                    <div className="flex flex-wrap gap-1">
+                      {["Experiência do Usuário (UX)", "Design Thinking", "Design de Interface (UI)", "Prototipação de Alta Fidelidade", "Mapeamento de Jornada", "Pesquisa de Usuário"].map((s) => (
+                        <span key={s} className="inline-flex items-center h-5 px-2 rounded-full text-xs font-medium"
+                          style={{ background: "rgba(255,144,71,.12)", color: "#ff9047" }}>{s}</span>
+                      ))}
+                      <span className="inline-flex items-center h-5 px-1 text-xs text-muted-foreground">+19</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Disponibilidade</p>
+                    <p className="text-xs leading-4" style={{ color: "rgba(36,0,40,.80)" }}>
+                      <span className="font-medium">Modelo:</span> Híbrido · <span className="font-medium">Horas:</span> Não informado
+                    </p>
+                    <p className="text-xs leading-4 mt-0.5" style={{ color: "rgba(36,0,40,.80)" }}>
+                      Prefere remoto ou híbrido em Brasília. Avalia projetos nacionais com viagens pontuais.
+                    </p>
                   </div>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Disponibilidade</p>
-                  <p className="text-xs leading-4" style={{ color: "rgba(36,0,40,.80)" }}>
-                    <span className="font-medium">Modelo:</span> Híbrido · <span className="font-medium">Horas:</span> Não informado
-                  </p>
-                  <p className="text-xs leading-4 mt-0.5" style={{ color: "rgba(36,0,40,.80)" }}>
-                    Prefere remoto ou híbrido em Brasília. Avalia projetos nacionais com viagens pontuais.
-                  </p>
-                </div>
               </div>
-            </div>
+            ) : (
+              <div className="px-3 py-3 space-y-3">
+                <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
+                  <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-2"
+                    style={{ background: "linear-gradient(135deg,rgba(109,0,112,.04) 0%,transparent 70%)" }}>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Match Card</p>
+                      <p className="text-sm font-semibold leading-5 mt-0.5">Gerente Administrativo Financeiro</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Sicoob Dom Eliseu · Dom Eliseu, PA</p>
+                    </div>
+                    <span className="text-xs font-bold text-success mt-1 flex-none">87% match</span>
+                  </div>
+                  <div className="px-4 py-3">
+                    <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Adaptações ao EmpreCard base</p>
+                    <ul className="text-[11px] text-muted-foreground space-y-0.5 leading-4">
+                      <li>· Skills destacadas: Gestão financeira, Análise de dados, Automação</li>
+                      <li>· Subtítulo adaptado para cooperativa de crédito</li>
+                      <li>· Essência reframeada com foco em gestão estratégica</li>
+                      <li>· Experiências ordenadas por relevância financeira</li>
+                    </ul>
+                  </div>
+                  <div className="px-4 py-2.5 border-t border-border flex items-center justify-between">
+                    <p className="text-[11px] text-muted-foreground">Gerado em 21 jun. 2026</p>
+                    <span className="text-[11px] font-medium text-success">Candidatura enviada</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground text-center pt-1">
+                  Um Match Card é criado a partir do seu EmpreCard para cada vaga que você se candidata.
+                </p>
+              </div>
+            )}
           </div>
         </>
       ) : (
@@ -918,6 +941,123 @@ function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => 
           </div>
         </>
       )}
+    </aside>
+  );
+}
+
+function ProfileSidebar({ count, progress }: { count: number; progress: number }) {
+  const hasPessoal    = count >= 6;
+  const hasLocalizacao = count >= 8;
+  const hasObjetivo   = count >= 10;
+  const hasExperiencia = count >= 14;
+  const hasEmpreCard  = count >= 15;
+
+  return (
+    <aside className="flex flex-col w-full h-full overflow-hidden bg-card border-l border-border" aria-label="Perfil do candidato">
+      {/* Header */}
+      <div className="flex-none px-4 pt-3 pb-3 border-b border-border flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <span className="w-9 h-9 flex-none rounded-full overflow-hidden">
+          <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">Bolivar Alencastro</p>
+          <p className="text-xs font-bold text-success">{progress}% preenchido</p>
+        </div>
+      </div>
+      {/* Progress bar */}
+      <div className="flex-none px-4 py-2.5 border-b border-border">
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className="h-full rounded-full bg-success transition-all duration-700" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+      {/* Sections */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2.5">
+        {!hasPessoal && (
+          <p className="text-xs text-muted-foreground text-center pt-10 leading-relaxed">
+            Seu perfil será preenchido<br />conforme a conversa avança.
+          </p>
+        )}
+        {hasPessoal && (
+          <div className="rounded-xl border border-border overflow-hidden animate-[proto-fade-in_0.5s_ease-out]">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dados pessoais</p>
+            </div>
+            <div className="px-3 py-2.5 space-y-1.5">
+              {[
+                { label: "Nome", value: "Bolivar Alencastro" },
+                { label: "E-mail", value: "bolivar@alencastro.com.br" },
+                { label: "LinkedIn", value: "bolivaralencastro" },
+              ].map((f) => (
+                <div key={f.label} className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground flex-none">{f.label}</span>
+                  <span className="text-[11px] font-medium text-right truncate">{f.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {hasLocalizacao && (
+          <div className="rounded-xl border border-border overflow-hidden animate-[proto-fade-in_0.5s_ease-out]">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Localização e pretensão</p>
+            </div>
+            <div className="px-3 py-2.5 space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground flex-none">Cidade</span>
+                <span className="text-[11px] font-medium">Brasília, DF</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground flex-none">Modelo</span>
+                <span className="text-[11px] font-medium">Remoto / Híbrido</span>
+              </div>
+            </div>
+          </div>
+        )}
+        {hasObjetivo && (
+          <div className="rounded-xl border border-border overflow-hidden animate-[proto-fade-in_0.5s_ease-out]">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Objetivo profissional</p>
+            </div>
+            <div className="px-3 py-2.5">
+              <p className="text-[11px] font-medium">Product Designer</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Tecnologia, produto e dados · cooperativismo</p>
+            </div>
+          </div>
+        )}
+        {hasExperiencia && (
+          <div className="rounded-xl border border-border overflow-hidden animate-[proto-fade-in_0.5s_ease-out]">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Experiências profissionais</p>
+            </div>
+            <div className="divide-y divide-border/60">
+              {[
+                { role: "Product Designer", company: "Muzt", period: "2023 – atual" },
+                { role: "Designer de Produto", company: "Sidecar", period: "2022 – 2023" },
+                { role: "Designer Gráfico", company: "ABC Comunicação", period: "2020 – 2022" },
+              ].map((exp) => (
+                <div key={exp.company} className="px-3 py-2">
+                  <p className="text-[11px] font-semibold">{exp.role}</p>
+                  <p className="text-[11px] text-muted-foreground">{exp.company} · {exp.period}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {hasEmpreCard && (
+          <div className="rounded-xl border border-primary/30 overflow-hidden animate-[proto-fade-in_0.5s_ease-out]"
+            style={{ background: "linear-gradient(135deg,#FF904712 0%,transparent 70%)" }}>
+            <div className="px-3 py-2 border-b border-primary/20 flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3 text-primary flex-none" />
+              <p className="text-[10px] font-bold uppercase tracking-wide text-primary/70">EmpreCard criado</p>
+            </div>
+            <div className="px-3 py-2.5">
+              <p className="text-[11px] font-semibold">Profissional de tecnologia, produto e dados</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Designer de Produto · UX, automação e transformação digital</p>
+            </div>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
@@ -1206,7 +1346,7 @@ function EmpreCardMessage({ onOpen }: { onOpen: () => void }) {
           <Sparkles className="w-3.5 h-3.5" />
         </span>
         <div className="min-w-0">
-          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Emprecard gerado</p>
+          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">EmpreCard criado</p>
           <p className="text-sm font-medium truncate">Profissional de tecnologia, produto e dados</p>
         </div>
       </div>
@@ -1227,7 +1367,7 @@ function EmpreCardMessage({ onOpen }: { onOpen: () => void }) {
           onClick={onOpen}
           className="inline-flex items-center gap-2 min-h-8 px-3 rounded-lg border border-primary/16 bg-white text-foreground text-xs font-medium shadow-sm hover:bg-muted transition-colors"
         >
-          Ver Emprecard salvo
+          Ver meu EmpreCard
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -1386,40 +1526,62 @@ function PrereqCard() {
       </div>
 
       {allDone ? (
-        <div className="border-t border-success/25 bg-success-soft px-4 py-3.5">
-          <div className="flex items-center gap-2 text-success text-sm font-semibold">
-            <CheckCircle className="w-4 h-4 flex-none" />
-            Todos os pré-requisitos concluídos — vaga liberada!
+        <>
+          {/* Match Card gerado para a vaga */}
+          <div className="border-t border-primary/15 px-4 py-3.5" style={{ background: "linear-gradient(135deg,rgba(109,0,112,.04) 0%,transparent 70%)" }}>
+            <div className="flex items-center gap-2 mb-2.5">
+              <span className="w-5 h-5 flex items-center justify-center rounded-md bg-primary/10 flex-none">
+                <Sparkles className="w-3 h-3 text-primary" />
+              </span>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-primary/50 flex-1">Match Card criado</p>
+              <span className="text-xs font-bold text-success">87% match</span>
+            </div>
+            <p className="text-xs font-semibold leading-5">Gerente Administrativo Financeiro</p>
+            <p className="text-[11px] text-muted-foreground mb-2">Sicoob Dom Eliseu · Dom Eliseu, PA</p>
+            <p className="text-[11px] font-medium text-muted-foreground mb-1">Adaptações ao EmpreCard base:</p>
+            <ul className="text-[11px] text-muted-foreground space-y-0.5 leading-4">
+              <li>· Skills destacadas: Gestão financeira, Análise de dados, Automação</li>
+              <li>· Subtítulo adaptado para cooperativa de crédito</li>
+              <li>· Essência reframeada com foco em gestão estratégica</li>
+              <li>· Experiências ordenadas por relevância financeira</li>
+            </ul>
           </div>
-          <p className="mt-1 ml-6 text-xs text-success/70 leading-relaxed">
-            Você completou todos os cursos e pode se candidatar.
-          </p>
-          <div className="ml-6 mt-3 flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-card text-muted-foreground text-xs font-medium hover:bg-muted transition-colors"
-            >
-              <Download className="w-3 h-3" />Baixar currículo
-            </button>
-            <a
-              href="/ats-vaga"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => {
-                const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
-                if (cur <= 18) {
-                  localStorage.setItem("proto_stage", "19");
-                  localStorage.setItem("proto_mode", "animated");
-                  window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 19, mode: "animated" } }));
-                }
-              }}
-              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-success/40 bg-card text-success text-xs font-semibold hover:bg-success/8 transition-colors"
-            >
-              Candidatar-se à vaga <ArrowRight className="w-3 h-3" />
-            </a>
+          {/* Ações */}
+          <div className="border-t border-success/25 bg-success-soft px-4 py-3.5">
+            <div className="flex items-center gap-2 text-success text-sm font-semibold">
+              <CheckCircle className="w-4 h-4 flex-none" />
+              Pré-requisitos concluídos — vaga liberada!
+            </div>
+            <p className="mt-1 ml-6 text-xs text-success/70 leading-relaxed">
+              Seu Match Card está pronto. Confirme para enviar a candidatura.
+            </p>
+            <div className="ml-6 mt-3 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-card text-muted-foreground text-xs font-medium hover:bg-muted transition-colors"
+              >
+                <Download className="w-3 h-3" />Baixar MatchCard
+              </button>
+              <a
+                href="/ats-vaga"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
+                  if (cur <= 18) {
+                    localStorage.setItem("proto_stage", "19");
+                    localStorage.setItem("proto_mode", "animated");
+                    window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 19, mode: "animated" } }));
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-success/40 bg-card text-success text-xs font-semibold hover:bg-success/8 transition-colors"
+              >
+                Confirmar candidatura <ArrowRight className="w-3 h-3" />
+              </a>
+            </div>
           </div>
-        </div>
+        </>
       ) : (
         <div className="border-t border-border px-4 py-3.5">
           <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
@@ -1427,10 +1589,10 @@ function PrereqCard() {
             {pendingCount} curso{pendingCount !== 1 ? "s" : ""} pendente{pendingCount !== 1 ? "s" : ""} para liberar a candidatura
           </div>
           <p className="mt-1 ml-[22px] text-xs text-muted-foreground/60 leading-relaxed">
-            Conclua todos os cursos acima para se candidatar.
+            Conclua todos os cursos acima para criar seu Match Card e candidatar-se.
           </p>
           <span className="ml-[22px] mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border text-muted-foreground/40 text-xs font-semibold cursor-not-allowed select-none">
-            Candidatar-se à vaga <ArrowRight className="w-3 h-3" />
+            Confirmar candidatura <ArrowRight className="w-3 h-3" />
           </span>
         </div>
       )}
@@ -1561,6 +1723,8 @@ function ReactivationOpportunitiesCard() {
   );
 }
 
+/* ── Header — Versão A (produção) ─────────────────────────────────────── */
+
 /* ── Proto constants ───────────────────────────────────────────────────── */
 
 // 'ai' or 'user' for each of the 24 messages
@@ -1586,7 +1750,8 @@ function TypingIndicator() {
 
 export default function AssistentePage() {
   const [voiceMode, setVoiceMode] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<null | "curriculo" | "emprecard" | "journey" | "vagas" | "cursos">(null);
+  const [layoutVariant, setLayoutVariant] = useState<"a" | "b">("a");
+  const [forcedPanel, setForcedPanel] = useState<import("@/components/layout/topbar").PanelKey | null>(null);
   const [commandsOpen, setCommandsOpen] = useState(false);
   const commandsRef = useRef<HTMLDivElement>(null);
   const [activeCommand, setActiveCommand] = useState<string | null>(null);
@@ -1648,12 +1813,14 @@ export default function AssistentePage() {
       const s = localStorage.getItem("proto_stage");
       const m = localStorage.getItem("proto_mode") as ProtoMode | null;
       const cp = localStorage.getItem("proto_courses") as CoursePreset | null;
+      const lv = (localStorage.getItem("proto_layout") as "a" | "b" | null) ?? "a";
       const count = s !== null ? parseInt(s) : PROTO_TOTAL;
       const mode = m ?? "complete";
       setVisibleCount(count);
       setProtoMode(mode);
       setIsTyping(false);
       setCoursePreset(cp);
+      setLayoutVariant(lv);
     }
     read();
     window.addEventListener("proto-update", read);
@@ -1704,18 +1871,32 @@ export default function AssistentePage() {
 
   return (
     <div className="h-dvh flex flex-col overflow-hidden">
-      <Topbar
-        onOpenProfile={() => setDrawerMode("curriculo")}
-        onOpenEmpreCard={() => setDrawerMode("emprecard")}
-        onOpenJourney={() => setDrawerMode("journey")}
-        onOpenJobs={() => setDrawerMode("vagas")}
-        onOpenCourses={() => setDrawerMode("cursos")}
-        profileProgress={aiProgress}
-      />
+      {layoutVariant === "a" ? (
+        <TopbarA />
+      ) : (
+        <Topbar
+          profileProgress={aiProgress}
+          forcedPanel={forcedPanel}
+          onForcedPanelDismiss={() => setForcedPanel(null)}
+          renderPanel={(key, onBack) => {
+            if (key === "journey") return <ProgressPanel count={visibleCount} coursePreset={coursePreset} progress={aiProgress} onClose={onBack} />;
+            if (key === "vagas")   return <VagasPanel onClose={onBack} />;
+            if (key === "cursos")  return <CursosPanel coursePreset={coursePreset} onClose={onBack} />;
+            return <ProfilePanel key={key} initialView={key as "curriculo" | "emprecard"} onClose={onBack} />;
+          }}
+        />
+      )}
 
-      <main className="flex-1 min-h-0 overflow-hidden relative">
-        {/* Chat — full width */}
-        <section className="h-full flex flex-col min-w-0 bg-background relative" aria-label="Assistente EmpregaCOOP">
+      <main className="flex-1 min-h-0 overflow-hidden flex">
+        {/* Left sidebar — Versão B */}
+        {layoutVariant === "a" && (
+          <div className="hidden lg:flex flex-none w-[240px] overflow-hidden">
+            <JourneyPanel count={visibleCount} coursePreset={coursePreset} progress={aiProgress} />
+          </div>
+        )}
+
+        {/* Chat */}
+        <section className="flex-1 min-w-0 h-full flex flex-col bg-background relative" aria-label="Assistente EmpregaCOOP">
             {/* Voice overlay */}
             {voiceMode && (
               <div className="absolute inset-0 z-20 bg-background flex flex-col">
@@ -1815,7 +1996,7 @@ export default function AssistentePage() {
                       Pode me chamar de Bolivar.
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* ── INTERAÇÃO: PREFERÊNCIAS E VAGAS INICIAIS ── */}
@@ -1876,7 +2057,7 @@ export default function AssistentePage() {
                       <span>10:05</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p className="mb-2">Ótimo! Já tenho seu currículo e suas preferências — consigo ver uma trajetória de 8 experiências em design, produto e arte, com foco em tecnologia e nível sênior. Vou usar tudo isso como base.</p>
+                      <p className="mb-2">Ótimo! Já tenho suas informações e preferências — consigo ver uma trajetória de 8 experiências em design, produto e arte, com foco em tecnologia e nível sênior. Vou usar tudo isso para criar seu EmpreCard.</p>
                       <p><strong>Só falta uma coisa: em que cidade e estado você mora hoje?</strong></p>
                     </div>
                   </div>
@@ -1892,7 +2073,7 @@ export default function AssistentePage() {
                       Moro em Brasília, Distrito Federal.
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* ── ETAPA 3 PERFIL: OBJETIVO PROFISSIONAL ──────── */}
@@ -1922,7 +2103,7 @@ export default function AssistentePage() {
                       Minha área principal é tecnologia, produto digital, dados e automação com IA. Busco oportunidades em cooperativas que estejam passando por transformação digital.
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* AI: Confirma objetivo + transição para experiência */}
@@ -1968,7 +2149,7 @@ export default function AssistentePage() {
                       Trabalhei com estratégia digital, desenvolvimento de produtos, automação, análise de dados e integrações em projetos de transformação digital.
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* Assistant message 2 */}
@@ -1996,7 +2177,7 @@ export default function AssistentePage() {
                       Atuei em projetos de produto e operações, organizando backlog, integrações, automações e análises para tomada de decisão. Meu foco era simplificar processos e aumentar velocidade de entrega.
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* Assistant message 3 — EmpreCard */}
@@ -2008,9 +2189,9 @@ export default function AssistentePage() {
                       <span>10:37</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Pronto! Seu Emprecard foi gerado.</p>
+                      <p>Pronto! Seu EmpreCard foi criado — seu Currículo 2.0 no cooperativismo.</p>
                     </div>
-                    <EmpreCardMessage onOpen={() => setDrawerMode("emprecard")} />
+                    <EmpreCardMessage onOpen={() => setForcedPanel("emprecard")} />
                   </div>
                 </article>
 
@@ -2041,7 +2222,7 @@ export default function AssistentePage() {
                       Quero saber mais sobre Gerente Administrativo Financeiro.
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* AI: Cursos pré-requisito */}
@@ -2085,7 +2266,7 @@ export default function AssistentePage() {
                       Sim, enviei! Foi bem tranquilo.
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* M20 — AI: Candidatura registrada */}
@@ -2131,7 +2312,7 @@ export default function AssistentePage() {
                       Pode mostrar outras vagas compatíveis com meu perfil enquanto aguardo?
                     </div>
                   </div>
-                  <UserAvatar progress={aiProgress} onOpen={() => setDrawerMode("journey")} />
+                  <UserAvatar />
                 </article>
 
                 {/* M24 — AI: Novas vagas */}
@@ -2295,27 +2476,10 @@ export default function AssistentePage() {
             </form>
           </section>
 
-        {/* Right drawer — on demand */}
-        {drawerMode && (
-          <div className="fixed inset-0 z-50 overflow-hidden sm:inset-auto sm:top-2 sm:right-2 sm:bottom-2 sm:w-[336px] sm:rounded-2xl sm:shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
-            {drawerMode === "journey" ? (
-              <ProgressPanel
-                count={visibleCount}
-                coursePreset={coursePreset}
-                progress={aiProgress}
-                onClose={() => setDrawerMode(null)}
-              />
-            ) : drawerMode === "vagas" ? (
-              <VagasPanel onClose={() => setDrawerMode(null)} />
-            ) : drawerMode === "cursos" ? (
-              <CursosPanel coursePreset={coursePreset} onClose={() => setDrawerMode(null)} />
-            ) : (
-              <ProfilePanel
-                key={drawerMode}
-                initialView={drawerMode as "curriculo" | "emprecard"}
-                onClose={() => setDrawerMode(null)}
-              />
-            )}
+        {/* Right sidebar — Versão A */}
+        {layoutVariant === "a" && (
+          <div className="hidden lg:flex flex-none w-[280px] overflow-hidden">
+            <ProfileSidebar count={visibleCount} progress={aiProgress} />
           </div>
         )}
       </main>

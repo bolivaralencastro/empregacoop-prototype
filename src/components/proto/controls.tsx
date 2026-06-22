@@ -52,12 +52,22 @@ export function ProtoControls() {
     if (typeof window === "undefined") return "initial";
     return (window.localStorage.getItem("proto_courses") as CoursePreset | null) ?? "initial";
   });
+  const [layoutVariant, setLayoutVariant] = useState<"a" | "b">(() => {
+    if (typeof window === "undefined") return "a";
+    return (window.localStorage.getItem("proto_layout") as "a" | "b" | null) ?? "a";
+  });
   const router = useRouter();
   const pathname = usePathname();
 
   function selectCoursePreset(preset: CoursePreset) {
     localStorage.setItem("proto_courses", preset);
     setCoursePreset(preset);
+    window.dispatchEvent(new CustomEvent("proto-update", { detail: {} }));
+  }
+
+  function selectLayout(v: "a" | "b") {
+    localStorage.setItem("proto_layout", v);
+    setLayoutVariant(v);
     window.dispatchEvent(new CustomEvent("proto-update", { detail: {} }));
   }
 
@@ -130,6 +140,30 @@ export function ProtoControls() {
 
           {/* Scrollable body */}
           <div className="flex-1 min-h-0 overflow-y-auto">
+
+            {/* Layout — only on /assistente, not on /emprecards where B doesn't exist */}
+            {!pathname.startsWith("/emprecards") && (
+              <div className="px-3 pt-2.5 pb-2 border-b border-border">
+                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
+                  Layout
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                  {(["a", "b"] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => selectLayout(v)}
+                      className={`flex items-center justify-center h-7 rounded-lg text-[11px] font-medium transition-colors ${
+                        layoutVariant === v
+                          ? "bg-primary text-white shadow-sm"
+                          : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {v === "a" ? "Versão A" : "Versão B"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Modo do assistente */}
             <div className="px-3 pt-2.5 pb-2 border-b border-border">

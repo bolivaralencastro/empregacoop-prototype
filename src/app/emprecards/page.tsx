@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Star, Sparkles, Eye, MoreVertical, Clock } from "lucide-react";
-import { Topbar } from "@/components/layout/topbar";
+import { TopbarA } from "@/components/layout/topbar-a";
 
 const cards = [
   {
@@ -17,7 +17,7 @@ const cards = [
 export default function EmprecardsList() {
   return (
     <div className="h-dvh flex flex-col overflow-hidden">
-      <Topbar />
+      <TopbarA activeSection="emprecards" />
       <main className="flex-1 min-h-0 overflow-y-auto">
         <div className="w-full max-w-[800px] mx-auto px-4 py-8">
           <section className="bg-card border border-border rounded-2xl shadow-sm p-8">

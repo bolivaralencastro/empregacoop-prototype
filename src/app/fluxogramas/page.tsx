@@ -25,6 +25,138 @@ mermaid.initialize({
 
 const DIAGRAMS = [
   {
+    id: "acesso",
+    label: "Acesso",
+    description: "Fluxo completo do usuário pela plataforma — das 6 etapas principais (acesso, onboarding, perfil, capacitação, vagas e reativação) à candidatura e reentrada no ciclo.",
+    chart: `
+flowchart TD
+    subgraph sg1["① Acesso"]
+        A([Login no app]) --> B[OTP — Código de acesso]
+        B --> C[Boas-vindas pós-cadastro]
+    end
+
+    subgraph sg2["② Onboarding"]
+        D([Onboarding iniciado]) --> E([Onboarding concluído])
+    end
+
+    subgraph sg3["③ Assistente e Perfil"]
+        F([Chat com assistente IA]) --> G{Perfil completo?}
+        G -->|Não — continua coleta| F
+        G -->|Sim| H([EmpreCard gerado])
+    end
+
+    subgraph sg4["④ Capacitação"]
+        I{Pré-requisitos pendentes?}
+        J[CapacitaCOOP — Cursos e trilhas]
+        K([Capacitação concluída])
+        I -->|Sim| J
+        J --> K
+        I -->|Não| K
+    end
+
+    subgraph sg5["⑤ Vagas e Candidatura"]
+        L([Vagas compatíveis disponibilizadas])
+        M[Candidatura enviada — Currículo ATS]
+        N[Acompanhamento do processo]
+        O{Resultado}
+        P([Contratado])
+        Q([Atualizar perfil e tentar novamente])
+        L --> M --> N --> O
+        O -->|Aprovado| P
+        O -->|Reprovado| Q
+        O -->|Em processo| N
+    end
+
+    subgraph sg6["⑥ Reativação e Segmentação"]
+        R([Reativação periódica por IA])
+        S[Segmentação regional — Oportunidades locais]
+        T([Novo ciclo de candidatura])
+        R --> S --> T
+    end
+
+    C --> D
+    E --> F
+    H --> I
+    K --> L
+    Q --> R
+    T --> F
+`,
+  },
+  {
+    id: "engajamento",
+    label: "Engajamento",
+    description: "Encadeamento de e-mails (E-x) e WhatsApps (F-x) ao longo da jornada — fluxos principais e mensagens de recuperação por abandono ou inatividade.",
+    chart: `
+flowchart TD
+    subgraph sg1["① Acesso"]
+        A([Início — Login no app])
+        E1["E-1 · OTP / Código de acesso\nEnviar código para acesso"]
+        E2["E-2 · Boas-vindas pós-cadastro\nOrientar próximos passos"]
+        A --> E1 --> E2
+    end
+
+    subgraph sg2["② Onboarding"]
+        OB1(["Onboarding iniciado"])
+        OB2(["Onboarding concluído"])
+        OB1 --> OB2
+    end
+
+    subgraph sg3["③ Assistente e Perfil"]
+        CH(["Chat / Assistente iniciado"])
+        E3["E-3 · Perfil incompleto\nLembrete para completar o perfil"]
+        E4["E-4 · Perfil concluído\nConfirmação de perfil"]
+        CH --> E3 --> E4
+    end
+
+    subgraph sg4["④ Capacitação"]
+        E5["E-5 · Trilha disponível\nInformar trilhas compatíveis"]
+        E6["E-6 · Lembrete de trilha\nReforçar para iniciar a trilha"]
+        E7["E-7 · Trilha concluída\nParabéns pela conclusão"]
+        E5 --> E6 --> E7
+    end
+
+    subgraph sg5["⑤ Vagas e Candidatura"]
+        E8["E-8 · Vagas disponíveis\nVagas compatíveis com seu perfil"]
+        E9["E-9 · Candidatura enviada\nConfirmação de recebimento"]
+        E10["E-10 · Atualização de status\nInformar andamento do processo"]
+        E8 --> E9 --> E10
+    end
+
+    subgraph sg6["⑥ Reativação e Segmentação"]
+        F12["F-12 · Inatividade após recomendação\n14 e 30 dias"]
+        F13["F-13 · Segmentação regional\nOportunidades locais"]
+    end
+
+    E2 --> OB1
+    OB2 --> CH
+    E4 --> E5
+    E7 --> E8
+    E10 --> F12
+    E10 --> F13
+
+    A -.-> F1["F-1 · Não iniciou cadastro/onboarding\nE-mail: 2h · WA: 24h"]
+    E2 -.-> F2["F-2 · CPF/termos não concluído\nE-mail: 4h · WA: 48h"]
+    OB1 -.-> EF3["E-11/F-3 · Abandono de onboarding\n24h · 72h · 7 dias"]
+    OB2 -.-> F4["F-4 · Chat não iniciado após onboarding\nE-mail: 2h · WA: 24h"]
+    CH -.-> F5["F-5 · Perfil não completado\nWA: 3h · E-mail: 24h e 72h"]
+    E4 -.-> F6["F-6 · Emprecard gerado\nImediato"]
+    E5 -.-> F7["F-7 · Curso indicado como pré-requisito\nImediato · 24h · 5 dias"]
+    E6 -.-> F8["F-8 · Curso iniciado, mas abandonado\n48h · 5 dias · 10 dias"]
+    E7 -.-> F9["F-9 · Vaga liberada após conclusão\nImediato"]
+    E8 -.-> E12["E-12 · Sem seleção de vagas\n48h · 5 dias · 10 dias"]
+    E8 -.-> F10["F-10 · Candidatura não iniciada\nWA: 24h · E-mail: 72h e 7 dias"]
+    E9 -.-> F11["F-11 · Candidatura não enviada\nWA: 2h · E-mail: 24h"]
+
+    classDef emailTrigger fill:#fff7ed,stroke:#ea580c,color:#9a3412
+    classDef followup fill:#f0fdf4,stroke:#16a34a,color:#14532d
+    classDef milestone fill:#fffbeb,stroke:#d97706,color:#78350f
+
+    class E1,E2,E3,E4,E5,E6,E7,E8,E9,E10 emailTrigger
+    class F1,F2,EF3,F4,F5,F6,F7,F8,F9,E12,F10,F11,F12,F13 followup
+    class A,OB1,OB2,CH milestone
+`,
+  },
+  {
     id: "jornada",
     label: "Jornada B2C",
     description: "Fluxo completo do usuário: entrada, qualificação, candidatura, retorno ao app e reativação contínua.",
@@ -42,7 +174,8 @@ flowchart TD
     I -->|Não| H
     I -->|Sim| J([Candidatura\nliberada])
     G -->|Não| J
-    J --> K[Saída para ATS\nou inscrição externa]
+    J --> MC[Match Card gerado\nEmpreCard personalizado para a vaga]
+    MC --> K[Saída para ATS\nou inscrição externa]
     K --> L[Confirmação manual\nou por RH]
     L --> M[Retorno ao app]
     M --> N{Precisa fortalecer\nperfil?}
@@ -68,8 +201,11 @@ flowchart TD
     D -->|Não| E[Vaga segue em acompanhamento]
     D -->|Sim| F[Registrar event apply_clicked]
     F --> G[Criar application_intent]
-    G --> H[Gerar currículo ATS-friendly]
-    H --> I[Anexar resume_id · candidate_id · job_id · cooperative_id]
+    G --> MC1[Gerar Match Card\nEmpreCard adaptado à vaga]
+    MC1 --> MC2{Candidato revisa\npacote de aplicação?}
+    MC2 -->|Confirma| H[Exportar currículo ATS\na partir do Match Card]
+    MC2 -->|Ajusta destaques| MC1
+    H --> I[Anexar match_card_id · resume_id · candidate_id · job_id · cooperative_id]
     I --> J[Redirecionar para ATS externo]
     J --> K{Apoio do RH\nou link rastreável?}
     K -->|Sim| L[RH ou cooperativa confirma origem]
@@ -188,6 +324,8 @@ stateDiagram-v2
 flowchart TB
     cand[candidates]
     jobs[jobs]
+    emprecard[emprecard\nperfil profissional padrão]
+    match_cards[match_cards\nEmpreCard personalizado por vaga]
     resumes[resume_exports]
     apps[job_applications]
     events[application_events]
@@ -195,15 +333,18 @@ flowchart TB
     profile[profile_versions]
     reactivation[reactivation_cycles]
 
-    cand --> resumes
-    cand --> apps
+    cand --> emprecard
     cand --> courses
     cand --> profile
+    emprecard --> match_cards
+    jobs --> match_cards
+    profile --> match_cards
+    match_cards --> resumes
+    match_cards --> apps
     jobs --> apps
     resumes --> apps
     apps --> events
     jobs --> events
-    profile --> apps
     courses --> profile
     apps --> reactivation
     reactivation --> events
@@ -217,7 +358,7 @@ type DiagramId = (typeof DIAGRAMS)[number]["id"];
 
 export default function FluxogramasPage() {
   const router = useRouter();
-  const [activeId, setActiveId] = useState<DiagramId>("jornada");
+  const [activeId, setActiveId] = useState<DiagramId>("acesso");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);

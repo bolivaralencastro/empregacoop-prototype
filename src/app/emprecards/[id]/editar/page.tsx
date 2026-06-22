@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Save, Star, Trash2, ChevronDown } from "lucide-react";
-import { Topbar } from "@/components/layout/topbar";
+import { TopbarA } from "@/components/layout/topbar-a";
 
 const accordionSections = [
   {
@@ -81,7 +81,7 @@ export default function EmpreCardEdit() {
 
   return (
     <div className="h-dvh flex flex-col overflow-hidden">
-      <Topbar />
+      <TopbarA activeSection="emprecards" />
       <main className="flex-1 min-h-0 overflow-y-auto">
         <div className="w-full max-w-[800px] mx-auto px-4 py-8">
           <div className="flex flex-col gap-4">
