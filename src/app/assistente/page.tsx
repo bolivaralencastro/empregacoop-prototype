@@ -48,22 +48,29 @@ const COMMAND_ITEMS: { cmd: string; Icon: LucideIcon; desc: string; href?: strin
 
 type StepSub = { label: string; done: boolean; current?: boolean };
 type JStep =
-  | { id: number; label: string; status: "done" }
+  | { id: number; label: string; description?: string; status: "done" }
   | { id: number; label: string; status: "locked"; unlocks?: string }
   | { id: number; label: string; status: "current"; count?: string; context?: string; substeps?: StepSub[] };
 
 function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
-  const d = (id: number, label: string): JStep => ({ id, label, status: "done" });
+  const d = (id: number, label: string, description?: string): JStep => ({ id, label, description, status: "done" });
   const l = (id: number, label: string, unlocks?: string): JStep => ({ id, label, status: "locked", unlocks });
   const TAIL: JStep[] = [
-    l(4, "Capacitação", "Trilhas e cursos indicados"),
-    l(5, "Vagas", "Oportunidades compatíveis"),
-    l(6, "Candidaturas", "Candidatura com um clique"),
-    l(7, "Reativação", "Perfil sempre atualizado"),
+    l(4, "Capacitação", "Disponível em breve"),
+    l(5, "Vagas", "Disponível após completar o perfil"),
+    l(6, "Candidaturas", "Envie seu EmpreCard para vagas"),
+    l(7, "Reativação", "Retorne quando quiser"),
   ];
   const subLabels = ["Dados pessoais", "Localização", "Objetivo profissional", "Experiência profissional", "Formação acadêmica", "Habilidades e idiomas"];
   const subs = (nDone: number, cur: number): StepSub[] =>
     subLabels.map((label, i) => ({ label, done: i < nDone, current: i === cur }));
+
+  const DA = d(1, "Acesso", "Conta criada e verificada");
+  const DO = d(2, "Onboarding", "Boas-vindas concluídas");
+  const DP = d(3, "Perfil", "Perfil construído");
+  const DC = d(4, "Capacitação", "Cursos concluídos");
+  const DV = d(5, "Vagas", "Vagas encontradas");
+  const DCA = d(6, "Candidaturas", "Candidatura enviada");
 
   if (n < 6) {
     const ctx = n === 0 ? "Iniciando conversa"
@@ -71,20 +78,17 @@ function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
                : n === 3 ? "Solicitando currículo"
                : n === 4 ? "Coletando preferências"
                : "Identificando vagas compatíveis";
-    return [d(1, "Acesso"), { id: 2, label: "Onboarding", status: "current", context: ctx }, l(3, "Perfil", "Construção do seu perfil"), ...TAIL];
+    return [DA, { id: 2, label: "Onboarding", status: "current", context: ctx }, l(3, "Perfil", "Construção do seu perfil"), ...TAIL];
   }
-  if (n < 8)  return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "1/6", context: "Coletando dados pessoais",        substeps: subs(0, 0) }, ...TAIL];
-  if (n < 10) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "2/6", context: "Coletando localização",             substeps: subs(1, 1) }, ...TAIL];
-  if (n < 14) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "3/6", context: "Coletando objetivo profissional",   substeps: subs(2, 2) }, ...TAIL];
-  if (n < 15) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "4/6", context: "Coletando experiência profissional", substeps: subs(3, 3) }, ...TAIL];
-  if (n < 16) return [d(1, "Acesso"), d(2, "Onboarding"), { id: 3, label: "Perfil", status: "current", count: "6/6", context: "Perfil completo",                   substeps: subs(6, -1) }, ...TAIL];
+  if (n < 8)  return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "1/6", context: "Coletando dados pessoais",        substeps: subs(0, 0) }, ...TAIL];
+  if (n < 10) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "2/6", context: "Coletando localização",             substeps: subs(1, 1) }, ...TAIL];
+  if (n < 14) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "3/6", context: "Coletando objetivo profissional",   substeps: subs(2, 2) }, ...TAIL];
+  if (n < 15) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "4/6", context: "Coletando experiência profissional", substeps: subs(3, 3) }, ...TAIL];
+  if (n < 16) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "6/6", context: "Perfil completo",                   substeps: subs(6, -1) }, ...TAIL];
   // Reativação: fortalecer perfil e nova candidatura
   if (n >= 22) {
     return [
-      d(1, "Acesso"), d(2, "Onboarding"), d(3, "Perfil"),
-      d(4, "Capacitação"),
-      d(5, "Vagas"),
-      d(6, "Candidaturas"),
+      DA, DO, DP, DC, DV, DCA,
       { id: 7, label: "Reativação", status: "current" as const,
         context: n >= 24 ? "Nova candidatura disponível" : "Fortalecendo perfil" },
     ];
@@ -92,12 +96,10 @@ function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
   // Candidatura em acompanhamento
   if (n >= 19) {
     return [
-      d(1, "Acesso"), d(2, "Onboarding"), d(3, "Perfil"),
-      d(4, "Capacitação"),
-      d(5, "Vagas"),
+      DA, DO, DP, DC, DV,
       { id: 6, label: "Candidaturas", status: "current" as const,
         context: "Candidatura em acompanhamento" },
-      l(7, "Reativação", "Perfil sempre atualizado"),
+      l(7, "Reativação", "Retorne quando quiser"),
     ];
   }
 
@@ -108,13 +110,13 @@ function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
     { label: "Gestao Estrategica de Financas", done: c2done, current: c2progress },
   ];
   return [
-    d(1, "Acesso"), d(2, "Onboarding"), d(3, "Perfil"),
+    DA, DO, DP,
     { id: 4, label: "Capacitação", status: "current",
       context: c2done ? "Pré-requisito concluído" : c2progress ? "Curso em andamento" : "Analisando pré-requisitos",
       substeps: capSubs },
-    c2done ? d(5, "Vagas") : l(5, "Vagas", "1 vaga compatível identificada"),
-    l(6, "Candidaturas", c2done ? "Candidatura disponível →" : "Candidatura com um clique"),
-    l(7, "Reativação", "Perfil sempre atualizado"),
+    c2done ? DV : l(5, "Vagas", "1 vaga compatível identificada"),
+    l(6, "Candidaturas", c2done ? "Candidatura disponível →" : "Envie seu EmpreCard para vagas"),
+    l(7, "Reativação", "Retorne quando quiser"),
   ];
 }
 
@@ -167,114 +169,116 @@ function UserAvatar() {
 /* ── Sub-components ────────────────────────────────────────────────────── */
 
 function JourneyPanel({ count, coursePreset, progress, onClose }: { count: number; coursePreset: CoursePreset | null; progress?: number; onClose?: () => void }) {
+  const steps = getJourneySteps(count, coursePreset);
+  const p = progress ?? 0;
+
   return (
-    <aside
-      className="flex flex-col w-full overflow-hidden bg-card border-r border-border"
-      aria-label="Sua jornada"
-    >
+    <aside className="flex flex-col w-full overflow-hidden bg-muted/20 border-r border-border" aria-label="Sua jornada">
       {/* Header */}
-      <div className="flex-none px-3 pt-3 pb-2.5 border-b border-border flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold px-1">Sua jornada</h2>
-        {onClose && (
-          <button
-            type="button"
-            aria-label="Recolher jornada"
-            data-tooltip="Recolher"
-            data-tooltip-dir="down"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-      {progress !== undefined && (
-        <div className="flex-none px-4 py-2.5 border-b border-border">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[11px] font-medium text-muted-foreground">Perfil preenchido</p>
-            <span className="text-[11px] font-bold text-success">{progress}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-success transition-all duration-700" style={{ width: `${progress}%` }} />
-          </div>
+      <div className="flex-none px-4 pt-3.5 pb-3 border-b border-border flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Sua jornada</h2>
+          <p className="text-[11px] text-muted-foreground">Acompanhe seu progresso</p>
         </div>
-      )}
+        <div className="flex items-center gap-1">
+          {onClose && (
+            <button type="button" aria-label="Recolher jornada" onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
 
-      {/* Steps */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-0.5">
-        {getJourneySteps(count, coursePreset).map((step) => {
-          if (step.status === "done") {
-            return (
-              <div key={step.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl">
-                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-success-soft text-success flex-none">
-                  <Check className="w-3 h-3" />
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
+        {/* Progress card */}
+        {progress !== undefined && (
+          <div className="rounded-xl border border-border bg-card p-3.5 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-muted-foreground">Progresso geral</p>
+              <span className="text-base font-bold text-primary">{p}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-2">
+              <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${p}%` }} />
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">{progressMotivation(p)}</p>
+          </div>
+        )}
+
+        {/* Step cards */}
+        {steps.map((step) => {
+          if (step.status === "done") return (
+            <div key={step.id} className="rounded-xl border border-border bg-card p-3 flex items-center gap-2.5 shadow-sm">
+              <span className="w-6 h-6 flex items-center justify-center rounded-full bg-success/15 text-success flex-none">
+                <Check className="w-3.5 h-3.5" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold">{step.id}. {step.label}</p>
+                {step.description && <p className="text-[11px] text-muted-foreground mt-0.5">{step.description}</p>}
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/30 flex-none" />
+            </div>
+          );
+
+          if (step.status === "current") return (
+            <div key={step.id} className="rounded-xl border border-primary/40 bg-primary/[0.04] p-3.5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-primary text-white text-xs font-bold flex-none">
+                  {step.id}
                 </span>
-                <span className="text-sm text-foreground/60 flex-1">{step.id}. {step.label}</span>
+                <span className="text-xs font-semibold flex-1">{step.label}</span>
+                {step.count && <span className="text-xs font-semibold text-primary">{step.count}</span>}
               </div>
-            );
-          }
-
-          if (step.status === "current") {
-            return (
-              <div key={step.id} className="rounded-2xl border border-primary/30 bg-gradient-to-b from-brand-soft/50 to-card/80 p-3.5 my-1">
-                <div className="flex items-center gap-2.5 mb-2.5">
-                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-primary text-white text-xs font-bold flex-none">
-                    {step.id}
-                  </span>
-                  <span className="text-sm font-semibold flex-1">{step.label}</span>
-                  {step.count && (
-                    <span className="inline-flex items-center h-5 px-2 rounded-full bg-brand-soft text-primary text-xs font-semibold">
-                      {step.count}
-                    </span>
-                  )}
+              {step.substeps && (
+                <div className="ml-[34px] space-y-1.5">
+                  {step.substeps.map((sub) => (
+                    <div key={sub.label} className="flex items-center gap-2">
+                      <span className={`w-4 h-4 flex items-center justify-center rounded-full border flex-none transition-colors ${
+                        sub.done && !sub.current ? "border-success bg-success text-white" :
+                        sub.current ? "border-primary bg-primary text-white" :
+                        "border-border"
+                      }`}>
+                        {(sub.done || sub.current) && <Check className="w-2.5 h-2.5" />}
+                      </span>
+                      <span className={`text-[11px] leading-4 ${
+                        sub.current ? "font-semibold text-foreground" :
+                        sub.done ? "text-muted-foreground" : "text-muted-foreground/40"
+                      }`}>{sub.label}</span>
+                    </div>
+                  ))}
                 </div>
-                {"context" in step && step.context && (
-                  <p className="text-xs text-primary/65 font-medium mb-3 ml-[34px]">
-                    {step.context}
-                  </p>
-                )}
-                {"substeps" in step && step.substeps && (
-                  <div className="ml-[34px] space-y-2">
-                    {step.substeps.map((sub) => (
-                      <div key={sub.label} className="flex items-center gap-2">
-                        <span className={`w-4 h-4 flex items-center justify-center rounded-full border flex-none ${
-                          sub.done && !sub.current
-                            ? "border-success bg-success text-white"
-                            : sub.current
-                            ? "border-primary bg-primary text-white"
-                            : "border-border bg-transparent"
-                        }`}>
-                          {(sub.done || sub.current) && <Check className="w-2.5 h-2.5" />}
-                        </span>
-                        <span className={`text-xs leading-4 ${
-                          sub.current ? "font-semibold text-foreground" :
-                          sub.done ? "text-muted-foreground" :
-                          "text-muted-foreground/50"
-                        }`}>
-                          {sub.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
+              )}
+              {step.context && !step.substeps && (
+                <p className="text-[11px] text-primary/70 font-medium ml-[34px]">{step.context}</p>
+              )}
+            </div>
+          );
 
           return (
-            <div key={step.id} className="flex items-start gap-2.5 px-2 py-2 rounded-xl opacity-45">
-              <span className="w-6 h-6 flex items-center justify-center rounded-full border border-border flex-none mt-0.5">
+            <div key={step.id} className="rounded-xl border border-border bg-card p-3 flex items-center gap-2.5 shadow-sm opacity-45">
+              <span className="w-6 h-6 flex items-center justify-center rounded-full border border-border flex-none">
                 <Lock className="w-3 h-3 text-muted-foreground" />
               </span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium leading-5">{step.id}. {step.label}</p>
-                {"unlocks" in step && step.unlocks && (
-                  <p className="text-xs text-muted-foreground leading-4 mt-0.5">{step.unlocks}</p>
-                )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold">{step.id}. {step.label}</p>
+                {step.unlocks && <p className="text-[11px] text-muted-foreground mt-0.5">{step.unlocks}</p>}
               </div>
             </div>
           );
         })}
+
+        {/* CTA */}
+        {p < 100 && (
+          <div className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3.5">
+            <div className="flex items-center gap-2 mb-1">
+              <Star className="w-3.5 h-3.5 text-primary flex-none" />
+              <p className="text-xs font-semibold text-primary">Complete seu perfil</p>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Perfis completos têm 3x mais chances de serem selecionados para vagas!
+            </p>
+          </div>
+        )}
       </div>
     </aside>
   );
@@ -950,27 +954,13 @@ function ProfileSidebar({ count, progress }: { count: number; progress: number }
   const hasLocalizacao = count >= 8;
   const hasObjetivo   = count >= 10;
   const hasExperiencia = count >= 14;
+  const hasSobreVoce  = count >= 14;
+  const hasIdiomas    = count >= 14;
+  const hasHabilidades = count >= 14;
   const hasEmpreCard  = count >= 15;
 
   return (
     <aside className="flex flex-col w-full h-full overflow-hidden bg-card border-l border-border" aria-label="Perfil do candidato">
-      {/* Header */}
-      <div className="flex-none px-4 pt-3 pb-3 border-b border-border flex items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <span className="w-9 h-9 flex-none rounded-full overflow-hidden">
-          <img src="https://i.pravatar.cc/64?img=12" alt="Bolivar" className="w-full h-full object-cover" />
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold">Bolivar Alencastro</p>
-          <p className="text-xs font-bold text-success">{progress}% preenchido</p>
-        </div>
-      </div>
-      {/* Progress bar */}
-      <div className="flex-none px-4 py-2.5 border-b border-border">
-        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-          <div className="h-full rounded-full bg-success transition-all duration-700" style={{ width: `${progress}%` }} />
-        </div>
-      </div>
       {/* Sections */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2.5">
         {!hasPessoal && (
@@ -1040,6 +1030,64 @@ function ProfileSidebar({ count, progress }: { count: number; progress: number }
                   <p className="text-[11px] font-semibold">{exp.role}</p>
                   <p className="text-[11px] text-muted-foreground">{exp.company} · {exp.period}</p>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {hasSobreVoce && (
+          <div className="rounded-xl border border-border overflow-hidden animate-[proto-fade-in_0.5s_ease-out]">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Sobre você</p>
+            </div>
+            <div className="px-3 py-2.5 space-y-2">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Product Designer com experiência em implementação de design system do zero, uso de workshops de Design Thinking e foco em trabalho remoto e híbrido.
+              </p>
+              <div className="space-y-1 pt-0.5">
+                {[
+                  { icon: "✉", value: "bolivar@alencastro.com.br" },
+                  { icon: "📞", value: "+55 48 984138601" },
+                  { icon: "📍", value: "Brasília, Distrito Federal" },
+                ].map((c) => (
+                  <p key={c.value} className="text-[11px] text-muted-foreground">{c.icon} {c.value}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {hasIdiomas && (
+          <div className="rounded-xl border border-border overflow-hidden animate-[proto-fade-in_0.5s_ease-out]">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Idiomas</p>
+            </div>
+            <div className="px-3 py-2.5 space-y-1.5">
+              {[
+                { lang: "Português", level: "Nativo" },
+                { lang: "Inglês", level: "Avançado" },
+              ].map((l) => (
+                <div key={l.lang} className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] font-medium">{l.lang}</span>
+                  <span className="text-[11px] text-muted-foreground">{l.level}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {hasHabilidades && (
+          <div className="rounded-xl border border-border overflow-hidden animate-[proto-fade-in_0.5s_ease-out]">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Habilidades</p>
+            </div>
+            <div className="px-3 py-2.5 flex flex-wrap gap-1.5">
+              {[
+                "Experiência do Usuário (UX)", "Design Thinking", "Design de Interface (UI)",
+                "Prototipagem de Alta Fidelidade", "Pesquisa de Usuário", "Figma (Avançado)",
+                "Automação com IA", "Dados", "Produto digital", "Tecnologia",
+                "Análise de dados", "Desenvolvimento de produtos", "Estratégia digital",
+              ].map((s) => (
+                <span key={s} className="inline-flex items-center h-[22px] px-2 rounded-full text-[10px] font-medium bg-primary/8 text-primary">
+                  {s}
+                </span>
               ))}
             </div>
           </div>
