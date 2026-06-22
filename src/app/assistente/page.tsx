@@ -1451,7 +1451,7 @@ function PrereqCard() {
       if (label === C2) {
         const preset: CoursePreset = next === "done" ? "done" : "progress";
         localStorage.setItem("proto_courses", preset);
-        window.dispatchEvent(new CustomEvent("proto-update", { detail: {} }));
+        window.dispatchEvent(new CustomEvent("proto-courses-update", { detail: {} }));
       }
       return newStatus;
     });
@@ -1870,9 +1870,17 @@ export default function AssistentePage() {
       setCoursePreset(cp);
       setLayoutVariant(lv);
     }
+    function readCourses() {
+      const cp = localStorage.getItem("proto_courses") as CoursePreset | null;
+      setCoursePreset(cp);
+    }
     read();
     window.addEventListener("proto-update", read);
-    return () => window.removeEventListener("proto-update", read);
+    window.addEventListener("proto-courses-update", readCourses);
+    return () => {
+      window.removeEventListener("proto-update", read);
+      window.removeEventListener("proto-courses-update", readCourses);
+    };
   }, []);
 
   useEffect(() => {
