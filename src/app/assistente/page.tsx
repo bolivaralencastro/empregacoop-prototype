@@ -1451,7 +1451,21 @@ function PrereqCard() {
       if (label === C2) {
         const preset: CoursePreset = next === "done" ? "done" : "progress";
         localStorage.setItem("proto_courses", preset);
-        window.dispatchEvent(new CustomEvent("proto-courses-update", { detail: {} }));
+        if (next === "done") {
+          const currentStage = parseInt(localStorage.getItem("proto_stage") ?? "0");
+          if (currentStage < 19) {
+            // Avança o fluxo: continua a animação a partir do estágio seguinte
+            localStorage.setItem("proto_stage", "19");
+            localStorage.setItem("proto_mode", "animated");
+            window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 19, mode: "animated" } }));
+          } else {
+            // Já passou desta etapa — só atualiza o preset sem reiniciar
+            window.dispatchEvent(new CustomEvent("proto-courses-update", { detail: {} }));
+          }
+        } else {
+          // Curso em progresso — só atualiza o preset
+          window.dispatchEvent(new CustomEvent("proto-courses-update", { detail: {} }));
+        }
       }
       return newStatus;
     });
