@@ -287,153 +287,181 @@ function JourneyPanel({ count, coursePreset, progress, onClose }: { count: numbe
 /* ── Contextual Panel (Versão A · fase ativa) ──────────────────────────── */
 
 function ContextualPanel({ count, progress, coursePreset }: { count: number; progress: number; coursePreset: CoursePreset | null }) {
-  const [doneOpen, setDoneOpen] = useState(false);
-
-  const c2done     = coursePreset === "done";
-  const c2progress = coursePreset === "progress";
-
-  type HeroVariant = "primary" | "success" | "neutral";
-  type Hero = { Icon: LucideIcon; label: string; sub: string; cta?: string; variant: HeroVariant };
-
-  const hero: Hero =
-    count >= 22 ? { Icon: RefreshCw,   label: "Continue avançando!",         sub: "3 novas vagas compatíveis identificadas",      cta: "Ver vagas",              variant: "primary" }
-    : count >= 19 ? { Icon: Clock,       label: "Candidatura enviada",          sub: "Aguardando retorno do Sicoob Dom Eliseu",                                     variant: "neutral" }
-    : c2done      ? { Icon: CheckCircle, label: "Pré-requisitos concluídos",    sub: "Você está pronto para candidatar-se",         cta: "Confirmar candidatura",  variant: "success" }
-    : c2progress  ? { Icon: GraduationCap, label: "Gestão Financeira em andamento", sub: "Conclua para liberar a candidatura",     cta: "Continuar curso",        variant: "primary" }
-                  : { Icon: GraduationCap, label: "Pré-requisito pendente",     sub: "Conclua o curso para candidatar-se à vaga",  cta: "Ver cursos",             variant: "primary" };
-
-  type NStep = { Icon: LucideIcon; label: string; sub: string };
-  const nextSteps: NStep[] =
-    count >= 22
-      ? [
-          { Icon: Pencil,        label: "Atualizar EmpreCard",     sub: "Adicionar projetos e habilidades" },
-          { Icon: GraduationCap, label: "Explorar cursos",         sub: "2 novos no CapacitaCOOP" },
-          { Icon: Zap,           label: "Configurar alertas",      sub: "Receba vagas por e-mail" },
-        ]
-    : count >= 19
-      ? [
-          { Icon: Pencil,        label: "Fortalecer perfil",       sub: "Portfólio e novas habilidades" },
-          { Icon: GraduationCap, label: "Explorar novos cursos",   sub: "2 disponíveis no CapacitaCOOP" },
-          { Icon: Briefcase,     label: "Ver outras vagas",        sub: "2 compatíveis disponíveis" },
-        ]
-    : c2done
-      ? [
-          { Icon: Briefcase,     label: "Explorar outras vagas",   sub: "2 vagas compatíveis disponíveis" },
-          { Icon: GraduationCap, label: "Explorar novos cursos",   sub: "CapacitaCOOP tem novidades" },
-        ]
-      : [
-          { Icon: GraduationCap, label: c2progress ? "Continuar Gestão Financeira" : "Começar Gestão Financeira", sub: "Pré-requisito para a vaga" },
-          { Icon: Briefcase,     label: "Explorar outras vagas",   sub: "2 compatíveis disponíveis" },
-        ];
-
-  type DoneItem = { label: string; when: string };
-  const doneItems: DoneItem[] = [
-    ...(count >= 19 ? [{ label: "Candidatura enviada", when: "21 jun" }] : []),
-    ...((c2done || count >= 19) ? [{ label: "Cursos concluídos", when: "20 jun" }] : []),
-    { label: "EmpreCard criado", when: "15 jun" },
-    { label: "Perfil construído", when: "15 jun" },
-    { label: "Acesso criado", when: "14 jun" },
-  ];
-
-  const vt = {
-    primary: { border: "border-primary/30", bg: "bg-primary/[0.05]", icon: "bg-primary/12 text-primary",             title: "text-primary" },
-    success: { border: "border-success/35", bg: "bg-success/[0.05]", icon: "bg-success/12 text-success",             title: "text-success" },
-    neutral: { border: "border-border",     bg: "bg-muted/30",       icon: "bg-muted text-muted-foreground",         title: "text-foreground" },
-  }[hero.variant];
+  const c2done          = coursePreset === "done";
+  const c2progress      = coursePreset === "progress";
+  const postCandidature = count >= 19;
+  const isReactivation  = count >= 22;
 
   return (
-    <aside className="flex flex-col w-full overflow-hidden bg-muted/20 border-r border-border" aria-label="Seu momento">
+    <aside className="flex flex-col w-full overflow-hidden bg-muted/20 border-r border-border" aria-label="Seu espaço">
       <div className="flex-none px-4 pt-3.5 pb-3 border-b border-border">
-        <h2 className="text-sm font-semibold">Seu momento</h2>
-        <p className="text-[11px] text-muted-foreground">O que é mais relevante agora</p>
+        <h2 className="text-sm font-semibold">Seu espaço</h2>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
-        {/* Hero — ação mais importante */}
-        <div className={`rounded-xl border ${vt.border} ${vt.bg} p-3.5`}>
-          <div className="flex items-start gap-2.5 mb-2">
-            <span className={`w-7 h-7 flex items-center justify-center rounded-lg flex-none ${vt.icon}`}>
-              <hero.Icon className="w-3.5 h-3.5" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className={`text-xs font-semibold leading-4 ${vt.title}`}>{hero.label}</p>
-              <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">{hero.sub}</p>
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
+
+        {/* Perfil completo — só enquanto não concluiu a primeira fase */}
+        {!postCandidature && (
+          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[11px] text-muted-foreground">Perfil completo</p>
+              <span className="text-xs font-bold text-primary">{progress}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${progress}%` }} />
             </div>
           </div>
-          {hero.cta && (
-            <button type="button"
-              className={`w-full h-7 rounded-lg text-xs font-semibold border ${vt.border} ${vt.title} hover:opacity-80 transition-opacity`}>
-              {hero.cta} →
-            </button>
-          )}
-        </div>
+        )}
 
-        {/* Próximos passos */}
-        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-          <div className="px-3 pt-2.5 pb-1.5 border-b border-border/60 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Próximos passos</p>
-            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
-              {nextSteps.length}
-            </span>
-          </div>
-          <div className="divide-y divide-border/50">
-            {nextSteps.map((step) => (
-              <button key={step.label} type="button"
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left">
-                <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-muted flex-none">
-                  <step.Icon className="w-3 h-3 text-muted-foreground" />
+        {/* ── CURSOS ─────────────────────────────────────── */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-1.5">Cursos</p>
+          <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+            {/* Cooperativismo — sempre concluído neste estágio */}
+            <div className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-border/50 ${postCandidature ? "opacity-50" : ""}`}>
+              <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium leading-4 truncate">Cooperativismo</p>
+                <p className="text-[10px] text-success/80 leading-4">Concluído · 4H</p>
+              </div>
+            </div>
+
+            {/* Gestão Financeira — estado dinâmico */}
+            {(c2done || postCandidature) ? (
+              <div className={`flex items-center gap-2.5 px-3 py-2.5 ${postCandidature ? "opacity-50" : ""}`}>
+                <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium leading-4 truncate">Gestão Financeira</p>
+                  <p className="text-[10px] text-success/80 leading-4">Concluído · 13H</p>
+                </div>
+              </div>
+            ) : c2progress ? (
+              <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors text-left">
+                <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-primary/12 flex-none">
+                  <RefreshCw className="w-3 h-3 text-primary" />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold leading-4 truncate">{step.label}</p>
-                  <p className="text-[10px] text-muted-foreground leading-4 mt-0.5 truncate">{step.sub}</p>
+                  <p className="text-xs font-semibold text-primary leading-4 truncate">Gestão Financeira</p>
+                  <p className="text-[10px] text-primary/60 leading-4">Em andamento · continuar</p>
+                </div>
+                <ArrowRight className="w-3 h-3 text-primary/50 flex-none" />
+              </button>
+            ) : (
+              <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left">
+                <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-muted flex-none">
+                  <GraduationCap className="w-3 h-3 text-muted-foreground" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold leading-4 truncate">Gestão Financeira</p>
+                  <p className="text-[10px] text-muted-foreground leading-4">Pré-requisito · começar</p>
                 </div>
                 <ArrowRight className="w-3 h-3 text-muted-foreground/40 flex-none" />
               </button>
-            ))}
+            )}
+
+            {/* Novos cursos disponíveis — só após candidatura */}
+            {postCandidature && (
+              <button type="button" className="w-full flex items-center justify-between px-3 py-2.5 border-t border-border/50 hover:bg-muted/40 transition-colors text-left">
+                <span className="text-xs font-semibold text-primary">2 novos cursos disponíveis</span>
+                <ArrowRight className="w-3 h-3 text-primary flex-none" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Progresso (compacto) */}
-        <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[11px] text-muted-foreground">Perfil completo</p>
-            <span className="text-xs font-bold text-primary">{progress}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${progress}%` }} />
-          </div>
-          {progress < 100 && (
-            <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
-              Perfis completos têm 3× mais visibilidade.
-            </p>
-          )}
-        </div>
-
-        {/* Concluído (colapsável) */}
-        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-          <button type="button" onClick={() => setDoneOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
-              <p className="text-[11px] font-semibold">Concluído</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">{doneItems.length} itens</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform ${doneOpen ? "rotate-180" : ""}`} />
-            </div>
-          </button>
-          {doneOpen && (
-            <div className="divide-y divide-border/40">
-              {doneItems.map((d) => (
-                <div key={d.label} className="flex items-center gap-2.5 px-3 py-2">
-                  <Check className="w-3 h-3 text-success/70 flex-none" />
-                  <span className="text-[11px] text-muted-foreground flex-1 leading-4">{d.label}</span>
-                  <span className="text-[10px] text-muted-foreground/40 flex-none">{d.when}</span>
+        {/* ── VAGAS ──────────────────────────────────────── */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-1.5">Vagas</p>
+          <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+            {isReactivation ? (
+              <>
+                <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-border/50 hover:bg-primary/[0.04] transition-colors text-left">
+                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-primary/10 flex-none">
+                    <span className="text-[10px] font-bold text-primary">3</span>
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-primary leading-4">Novas vagas para você</p>
+                    <p className="text-[10px] text-muted-foreground leading-4">Perfil recalculado</p>
+                  </div>
+                  <ArrowRight className="w-3 h-3 text-primary/50 flex-none" />
+                </button>
+                <div className="flex items-center gap-2.5 px-3 py-2.5 opacity-60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 flex-none" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground truncate">Sicoob Dom Eliseu</p>
+                    <p className="text-[10px] text-muted-foreground/60 leading-4">Em triagem · 21 jun</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </>
+            ) : postCandidature ? (
+              <div className="px-3 py-3">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <Check className="w-3.5 h-3.5 text-success flex-none" />
+                  <p className="text-xs font-semibold leading-4">Gerente Adm. Financeiro</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground ml-[22px]">Sicoob Dom Eliseu · em triagem</p>
+                <p className="text-[10px] text-muted-foreground/50 ml-[22px] mt-0.5">Candidatura enviada · 21 jun</p>
+              </div>
+            ) : c2done ? (
+              <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors text-left">
+                <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-primary/12 flex-none">
+                  <Briefcase className="w-3 h-3 text-primary" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-primary leading-4">Candidatura disponível</p>
+                  <p className="text-[10px] text-muted-foreground leading-4">Gerente Adm. Financeiro</p>
+                </div>
+                <ArrowRight className="w-3 h-3 text-primary/50 flex-none" />
+              </button>
+            ) : (
+              <div className="flex items-center gap-2.5 px-3 py-2.5 opacity-45">
+                <span className="w-6 h-6 flex items-center justify-center rounded-lg border border-border flex-none">
+                  <Lock className="w-3 h-3 text-muted-foreground" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold leading-4">Gerente Adm. Financeiro</p>
+                  <p className="text-[10px] text-muted-foreground leading-4">Conclua os cursos primeiro</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* ── NOTIFICAÇÕES — só após candidatura ─────────── */}
+        {postCandidature && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-1.5">Notificações</p>
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border/50">
+              {isReactivation ? (
+                <>
+                  <div className="flex items-start gap-2.5 px-3 py-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-none" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold leading-4">Nova vaga compatível</p>
+                      <p className="text-[10px] text-muted-foreground leading-4">UX/UI Designer Pleno · Há 1h</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 px-3 py-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-none" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold leading-4">Curso recomendado</p>
+                      <p className="text-[10px] text-muted-foreground leading-4">Design Systems · Há 3h</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-start gap-2.5 px-3 py-2.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 mt-1.5 flex-none" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground leading-4">Candidatura em análise</p>
+                    <p className="text-[10px] text-muted-foreground/60 leading-4">Sicoob Dom Eliseu · 21 jun</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </aside>
   );
