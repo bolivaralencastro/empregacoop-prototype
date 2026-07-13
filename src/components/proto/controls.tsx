@@ -20,12 +20,12 @@ export const PROTO_STAGES = [
   { label: "Localização confirmada", count: 8 },
   { label: "Objetivo profissional", count: 10 },
   { label: "Experiência detalhada", count: 14 },
-  { label: "EmpreCard gerado", count: 15 },
-  { label: "Vagas compatíveis", count: 16 },
-  { label: "Pré-requisitos · curso", count: 18 },
-  { label: "Candidatura confirmada", count: 21 },
-  { label: "Reativação · retorno", count: 22 },
-  { label: "Nova candidatura", count: 24 },
+  { label: "Vagas compatíveis", count: 15 },
+  { label: "Pré-requisitos · curso", count: 17 },
+  { label: "Candidatura confirmada", count: 20 },
+  { label: "Reativação · retorno", count: 21 },
+  { label: "Nova candidatura", count: 23 },
+  { label: "2ª candidatura · vaga liberada", count: 24 },
 ] as const;
 
 const PAGES = [

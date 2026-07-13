@@ -35,7 +35,8 @@ import {
 } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { TopbarA } from "@/components/layout/topbar-a";
-import { generateCurriculoPdf } from "@/lib/generateCurriculoPdf";
+import { generateEmpreMatchPdf } from "@/lib/generateEmpreMatchPdf";
+import { ExternalApplicationWizard } from "@/components/ExternalApplicationWizard";
 
 const COMMAND_ITEMS: { cmd: string; Icon: LucideIcon; desc: string; href?: string }[] = [
   { cmd: "/perfil", Icon: User, desc: "Completar ou atualizar dados do perfil" },
@@ -86,15 +87,15 @@ function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
   if (n < 15) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "4/6", context: "Coletando experiência profissional", substeps: subs(3, 3) }, ...TAIL];
   if (n < 16) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "6/6", context: "Perfil completo",                   substeps: subs(6, -1) }, ...TAIL];
   // Reativação: fortalecer perfil e nova candidatura
-  if (n >= 22) {
+  if (n >= 21) {
     return [
       DA, DO, DP, DC, DV, DCA,
       { id: 7, label: "Reativação", status: "current" as const,
-        context: n >= 24 ? "Nova candidatura disponível" : "Fortalecendo perfil" },
+        context: n >= 23 ? "Nova candidatura disponível" : "Fortalecendo perfil" },
     ];
   }
   // Candidatura em acompanhamento
-  if (n >= 19) {
+  if (n >= 18) {
     return [
       DA, DO, DP, DC, DV,
       { id: 6, label: "Candidaturas", status: "current" as const,
@@ -129,7 +130,7 @@ function getProfileProgress(n: number): number {
   if (n <= 7)  return 44;  // localização confirmada
   if (n <= 9)  return 60;  // objetivo profissional
   if (n <= 14) return 76;  // experiência detalhada
-  if (n <= 15) return 88;  // EmpreCard gerado
+  if (n <= 15) return 88;  // perfil completo, buscando vagas
   return 94;
 }
 
@@ -286,183 +287,400 @@ function JourneyPanel({ count, coursePreset, progress, onClose }: { count: numbe
 
 /* ── Contextual Panel (Versão A · fase ativa) ──────────────────────────── */
 
+type CPView = "home" | "candidatura" | "matchcard" | "vagas-list" | "cursos-list" | "notifs-list";
+
+type VagaRow   = { title: string; location: string; status: "open" | "awaiting" | "submitted" };
+type CursoRow  = { title: string; hours: string; status: "done" | "progress" | "new" | "locked"; dim?: boolean };
+type NotifRow  = { text: string; sub: string };
+
+const CP_PREVIEW = 3;
+
 function ContextualPanel({ count, progress, coursePreset }: { count: number; progress: number; coursePreset: CoursePreset | null }) {
+  const [view, setView] = useState<CPView>("home");
+
   const c2done          = coursePreset === "done";
   const c2progress      = coursePreset === "progress";
-  const postCandidature = count >= 19;
-  const isReactivation  = count >= 22;
+  const postCandidature = count >= 18;
+  const isRegistered    = count >= 20; // candidato voltou e confirmou a inscrição externa
+  const isReactivation  = count >= 21;
+  const secondApplication = count >= 24;
+
+  /* ── data arrays ──────────────────────────────── */
+
+  const cursosItems: CursoRow[] = (isReactivation || postCandidature)
+    ? [
+        { title: "Cooperativismo",                     hours: "4H",  status: "done" },
+        { title: "Gestão Financeira",                  hours: "13H", status: "done" },
+        { title: "Design de Sistemas Cooperativos",    hours: "8H",  status: "new" },
+        { title: "Liderança em Cooperativas",          hours: "6H",  status: "new" },
+        ...(isReactivation ? [{ title: "Gestão de Pessoas em Cooperativas", hours: "10H", status: "new" as const }] : []),
+      ]
+    : c2done
+    ? [
+        { title: "Cooperativismo",    hours: "4H",  status: "done" },
+        { title: "Gestão Financeira", hours: "13H", status: "done" },
+      ]
+    : c2progress
+    ? [
+        { title: "Cooperativismo",    hours: "4H",  status: "done", dim: true },
+        { title: "Gestão Financeira", hours: "13H", status: "progress" },
+      ]
+    : [
+        { title: "Cooperativismo",    hours: "4H",  status: "done", dim: true },
+        { title: "Gestão Financeira", hours: "13H", status: "locked" },
+      ];
+
+  const vagasItems: VagaRow[] = isReactivation
+    ? [
+        { title: "Gerente Adm. Financeiro",            location: "Dom Eliseu / PA",   status: "open" },
+        { title: "Analista de Produtos Digitais",      location: "Brasília / DF",     status: "open" },
+        { title: "Coordenador de Inovação e IA",       location: "São Paulo / SP",    status: "open" },
+        { title: "Especialista em Crédito Rural",      location: "Cuiabá / MT",       status: "open" },
+      ]
+    : postCandidature
+    ? [
+        { title: "Gerente Adm. Financeiro",            location: "Dom Eliseu / PA",   status: isRegistered ? "submitted" : "awaiting" },
+        { title: "Analista de Projetos Cooperativos",  location: "Belém / PA",        status: "open" },
+      ]
+    : c2done
+    ? [
+        { title: "Gerente Adm. Financeiro",            location: "Dom Eliseu / PA",   status: "open" },
+        { title: "Analista de Projetos Cooperativos",  location: "Belém / PA",        status: "open" },
+      ]
+    : [];
+
+  const notifsItems: NotifRow[] = isReactivation
+    ? [
+        { text: "Candidatura vista pela cooperativa",   sub: "Sicoob Dom Eliseu · Há 2d" },
+        { text: "Perfil em destaque esta semana",       sub: "12 recrutadores viram seu EmpreCard" },
+        { text: "Nova vaga compatível disponível",      sub: "Especialista em Crédito Rural · 1d" },
+        { text: "Lembrete: atualize suas experiências", sub: "Atraia mais recrutadores" },
+      ]
+    : postCandidature
+    ? [
+        { text: "Candidatura em análise",  sub: "Sicoob Dom Eliseu · 21 jun" },
+        { text: "EmpreCard visualizado",   sub: "3 cooperativas viram seu perfil" },
+        { text: "Dica: adicione certificações", sub: "Aumente seu score de perfil" },
+      ]
+    : [];
+
+  /* ── navigation ───────────────────────────────── */
+
+  const viewTitle: Record<CPView, string> = {
+    home:          "Seu espaço",
+    candidatura:   "Candidatura",
+    matchcard:     "Match Card",
+    "vagas-list":  "Vagas compatíveis",
+    "cursos-list": "Cursos disponíveis",
+    "notifs-list": "Notificações",
+  };
+  const viewBack: Partial<Record<CPView, CPView>> = {
+    candidatura:   "home",
+    matchcard:     "candidatura",
+    "vagas-list":  "home",
+    "cursos-list": "home",
+    "notifs-list": "home",
+  };
+
+  /* ── shared row renderers ─────────────────────── */
+
+  function renderCursoRow(curso: CursoRow, last: boolean) {
+    const border = last ? "" : "border-b border-border/50";
+    if (curso.status === "done") return (
+      <div key={curso.title} className={`flex items-center gap-2.5 px-3 py-2.5 ${border} ${curso.dim ? "opacity-50" : ""}`}>
+        <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
+        <div className="flex-1 min-w-0"><p className="text-xs font-medium leading-4 truncate">{curso.title}</p><p className="text-[10px] text-success/80 leading-4">Concluído · {curso.hours}</p></div>
+      </div>
+    );
+    if (curso.status === "progress") return (
+      <button key={curso.title} type="button" className={`w-full flex items-center gap-2.5 px-3 py-2.5 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors text-left ${border}`}>
+        <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-primary/12 flex-none"><RefreshCw className="w-3 h-3 text-primary" /></span>
+        <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-primary leading-4 truncate">{curso.title}</p><p className="text-[10px] text-primary/60 leading-4">Em andamento · continuar</p></div>
+        <ArrowRight className="w-3 h-3 text-primary/50 flex-none" />
+      </button>
+    );
+    if (curso.status === "new") return (
+      <button key={curso.title} type="button" onClick={() => window.open('#', '_blank')} className={`w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/30 transition-colors text-left ${border}`}>
+        <GraduationCap className="w-3.5 h-3.5 text-muted-foreground flex-none" />
+        <div className="flex-1 min-w-0"><p className="text-xs font-medium leading-4 truncate">{curso.title}</p><p className="text-[10px] text-muted-foreground leading-4">{curso.hours} · Nova trilha</p></div>
+        <span className="text-[10px] font-semibold text-primary whitespace-nowrap flex-none">Acessar →</span>
+      </button>
+    );
+    return (
+      <div key={curso.title} className={`flex items-center gap-2.5 px-3 py-2.5 opacity-45 ${border}`}>
+        <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-muted flex-none"><Lock className="w-3 h-3 text-muted-foreground" /></span>
+        <div className="flex-1 min-w-0"><p className="text-xs font-semibold leading-4 truncate">{curso.title}</p><p className="text-[10px] text-muted-foreground leading-4">Pré-requisito · {curso.hours}</p></div>
+      </div>
+    );
+  }
+
+  function renderVagaRow(vaga: VagaRow, last: boolean) {
+    const border = last ? "" : "border-b border-border/50";
+    if (vaga.status === "awaiting") return (
+      <div key={vaga.title} className={`flex items-center gap-2.5 px-3 py-2.5 ${border} opacity-80`}>
+        <RefreshCw className="w-3.5 h-3.5 text-orange flex-none" />
+        <div className="flex-1 min-w-0"><p className="text-xs font-medium leading-4 truncate">{vaga.title}</p><p className="text-[10px] text-muted-foreground leading-4">{vaga.location}</p></div>
+        <span className="flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">Aguardando confirmação</span>
+      </div>
+    );
+    if (vaga.status === "submitted") return (
+      <div key={vaga.title} className={`flex items-center gap-2.5 px-3 py-2.5 ${border} opacity-60`}>
+        <Check className="w-3.5 h-3.5 text-success flex-none" />
+        <div className="flex-1 min-w-0"><p className="text-xs font-medium leading-4 truncate">{vaga.title}</p><p className="text-[10px] text-muted-foreground leading-4">{vaga.location}</p></div>
+        <span className="flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Registrada</span>
+      </div>
+    );
+    return (
+      <div key={vaga.title} className={`flex items-center gap-2 px-3 py-2.5 ${border}`}>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold leading-4 truncate">{vaga.title}</p>
+          <div className="flex items-center gap-1 mt-0.5"><MapPin className="w-2.5 h-2.5 text-muted-foreground/60 flex-none" /><p className="text-[10px] text-muted-foreground leading-4">{vaga.location}</p></div>
+        </div>
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('proto-apply-job', { detail: vaga.title }))} className="flex-none text-[10px] font-semibold text-primary whitespace-nowrap hover:underline">
+          Candidatar-se →
+        </button>
+      </div>
+    );
+  }
+
+  function renderNotifRow(notif: NotifRow, last: boolean) {
+    return (
+      <div key={notif.text} className={`flex items-start gap-2.5 px-3 py-2.5 ${last ? "" : "border-b border-border/50"}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 mt-1.5 flex-none" />
+        <div className="flex-1 min-w-0"><p className="text-xs text-muted-foreground leading-4">{notif.text}</p><p className="text-[10px] text-muted-foreground/60 leading-4">{notif.sub}</p></div>
+      </div>
+    );
+  }
 
   return (
     <aside className="flex flex-col w-full overflow-hidden bg-muted/20 border-r border-border" aria-label="Seu espaço">
-      <div className="flex-none px-4 pt-3.5 pb-3 border-b border-border">
-        <h2 className="text-sm font-semibold">Seu espaço</h2>
+      {/* Header */}
+      <div className="flex-none px-3 pt-3.5 pb-3 border-b border-border flex items-center gap-1.5">
+        {viewBack[view] && (
+          <button type="button" onClick={() => setView(viewBack[view]!)} className="p-1 -ml-1 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex-none" aria-label="Voltar">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
+        <h2 className="text-sm font-semibold">{viewTitle[view]}</h2>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
+      {/* ── NÍVEL 1: Home ─────────────────────────────── */}
+      {view === "home" && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
 
-        {/* Perfil completo — só enquanto não concluiu a primeira fase */}
-        {!postCandidature && (
-          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[11px] text-muted-foreground">Perfil completo</p>
-              <span className="text-xs font-bold text-primary">{progress}%</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-              <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-        )}
-
-        {/* ── CURSOS ─────────────────────────────────────── */}
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-1.5">Cursos</p>
-          <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-            {/* Cooperativismo — sempre concluído neste estágio */}
-            <div className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-border/50 ${postCandidature ? "opacity-50" : ""}`}>
-              <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium leading-4 truncate">Cooperativismo</p>
-                <p className="text-[10px] text-success/80 leading-4">Concluído · 4H</p>
+          {/* Perfil completo */}
+          {!postCandidature && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Perfil completo</p>
+                <span className="text-xs font-bold text-primary">{progress}%</span>
+              </div>
+              <div className="px-3 py-2.5">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${progress}%` }} />
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Gestão Financeira — estado dinâmico */}
-            {(c2done || postCandidature) ? (
-              <div className={`flex items-center gap-2.5 px-3 py-2.5 ${postCandidature ? "opacity-50" : ""}`}>
-                <CheckCircle className="w-3.5 h-3.5 text-success flex-none" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium leading-4 truncate">Gestão Financeira</p>
-                  <p className="text-[10px] text-success/80 leading-4">Concluído · 13H</p>
-                </div>
-              </div>
-            ) : c2progress ? (
-              <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors text-left">
-                <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-primary/12 flex-none">
-                  <RefreshCw className="w-3 h-3 text-primary" />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-primary leading-4 truncate">Gestão Financeira</p>
-                  <p className="text-[10px] text-primary/60 leading-4">Em andamento · continuar</p>
-                </div>
-                <ArrowRight className="w-3 h-3 text-primary/50 flex-none" />
-              </button>
-            ) : (
-              <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left">
-                <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-muted flex-none">
-                  <GraduationCap className="w-3 h-3 text-muted-foreground" />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold leading-4 truncate">Gestão Financeira</p>
-                  <p className="text-[10px] text-muted-foreground leading-4">Pré-requisito · começar</p>
-                </div>
-                <ArrowRight className="w-3 h-3 text-muted-foreground/40 flex-none" />
-              </button>
-            )}
-
-            {/* Novos cursos disponíveis — só após candidatura */}
-            {postCandidature && (
-              <button type="button" className="w-full flex items-center justify-between px-3 py-2.5 border-t border-border/50 hover:bg-muted/40 transition-colors text-left">
-                <span className="text-xs font-semibold text-primary">2 novos cursos disponíveis</span>
-                <ArrowRight className="w-3 h-3 text-primary flex-none" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ── VAGAS ──────────────────────────────────────── */}
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-1.5">Vagas</p>
-          <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-            {isReactivation ? (
-              <>
-                <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-border/50 hover:bg-primary/[0.04] transition-colors text-left">
-                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-primary/10 flex-none">
-                    <span className="text-[10px] font-bold text-primary">3</span>
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-primary leading-4">Novas vagas para você</p>
-                    <p className="text-[10px] text-muted-foreground leading-4">Perfil recalculado</p>
-                  </div>
-                  <ArrowRight className="w-3 h-3 text-primary/50 flex-none" />
+          {/* CURSOS */}
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Cursos</p>
+              {cursosItems.length > CP_PREVIEW && (
+                <button type="button" onClick={() => setView("cursos-list")} className="text-[10px] font-semibold text-primary hover:underline">
+                  Ver todos ({cursosItems.length}) →
                 </button>
-                <div className="flex items-center gap-2.5 px-3 py-2.5 opacity-60">
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 flex-none" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground truncate">Sicoob Dom Eliseu</p>
-                    <p className="text-[10px] text-muted-foreground/60 leading-4">Em triagem · 21 jun</p>
-                  </div>
-                </div>
-              </>
-            ) : postCandidature ? (
-              <div className="px-3 py-3">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <Check className="w-3.5 h-3.5 text-success flex-none" />
-                  <p className="text-xs font-semibold leading-4">Gerente Adm. Financeiro</p>
-                </div>
-                <p className="text-[11px] text-muted-foreground ml-[22px]">Sicoob Dom Eliseu · em triagem</p>
-                <p className="text-[10px] text-muted-foreground/50 ml-[22px] mt-0.5">Candidatura enviada · 21 jun</p>
-              </div>
-            ) : c2done ? (
-              <button type="button" className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors text-left">
-                <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-primary/12 flex-none">
-                  <Briefcase className="w-3 h-3 text-primary" />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-primary leading-4">Candidatura disponível</p>
-                  <p className="text-[10px] text-muted-foreground leading-4">Gerente Adm. Financeiro</p>
-                </div>
-                <ArrowRight className="w-3 h-3 text-primary/50 flex-none" />
-              </button>
-            ) : (
-              <div className="flex items-center gap-2.5 px-3 py-2.5 opacity-45">
-                <span className="w-6 h-6 flex items-center justify-center rounded-lg border border-border flex-none">
-                  <Lock className="w-3 h-3 text-muted-foreground" />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold leading-4">Gerente Adm. Financeiro</p>
-                  <p className="text-[10px] text-muted-foreground leading-4">Conclua os cursos primeiro</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── NOTIFICAÇÕES — só após candidatura ─────────── */}
-        {postCandidature && (
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-1.5">Notificações</p>
-            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border/50">
-              {isReactivation ? (
-                <>
-                  <div className="flex items-start gap-2.5 px-3 py-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-none" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold leading-4">Nova vaga compatível</p>
-                      <p className="text-[10px] text-muted-foreground leading-4">UX/UI Designer Pleno · Há 1h</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2.5 px-3 py-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-none" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold leading-4">Curso recomendado</p>
-                      <p className="text-[10px] text-muted-foreground leading-4">Design Systems · Há 3h</p>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-start gap-2.5 px-3 py-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 mt-1.5 flex-none" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground leading-4">Candidatura em análise</p>
-                    <p className="text-[10px] text-muted-foreground/60 leading-4">Sicoob Dom Eliseu · 21 jun</p>
-                  </div>
-                </div>
+              )}
+            </div>
+            <div>
+              {cursosItems.slice(0, CP_PREVIEW).map((c, i) =>
+                renderCursoRow(c, i === Math.min(cursosItems.length, CP_PREVIEW) - 1)
               )}
             </div>
           </div>
-        )}
 
-      </div>
+          {/* VAGAS */}
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Vagas</p>
+              {vagasItems.length > CP_PREVIEW && (
+                <button type="button" onClick={() => setView("vagas-list")} className="text-[10px] font-semibold text-primary hover:underline">
+                  Ver todas ({vagasItems.length}) →
+                </button>
+              )}
+            </div>
+            {vagasItems.length > 0 ? (
+              vagasItems.slice(0, CP_PREVIEW).map((v, i) =>
+                renderVagaRow(v, i === Math.min(vagasItems.length, CP_PREVIEW) - 1)
+              )
+            ) : (
+              <div className="flex items-center gap-2.5 px-3 py-2.5 opacity-45">
+                <span className="w-6 h-6 flex items-center justify-center rounded-lg border border-border flex-none"><Lock className="w-3 h-3 text-muted-foreground" /></span>
+                <div className="flex-1 min-w-0"><p className="text-xs font-semibold leading-4">Gerente Adm. Financeiro</p><p className="text-[10px] text-muted-foreground leading-4">Conclua os cursos primeiro</p></div>
+              </div>
+            )}
+          </div>
+
+          {/* CANDIDATURAS */}
+          {postCandidature && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="px-3 py-2 border-b border-border bg-muted/30">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Candidaturas</p>
+              </div>
+              <button type="button" onClick={() => setView("candidatura")} className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/30 transition-colors text-left">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold leading-4 truncate">Gerente Adm. Financeiro</p>
+                  <p className="text-[10px] text-muted-foreground leading-4">Sicoob Dom Eliseu · 21 jun</p>
+                </div>
+                <span className={`flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                  !isRegistered ? "bg-orange-100 text-orange-600" : isReactivation ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600"
+                }`}>
+                  {!isRegistered ? "Aguardando confirmação" : isReactivation ? "Em análise" : "Em triagem"}
+                </span>
+              </button>
+              {secondApplication && (
+                <div className="w-full flex items-center gap-2.5 px-3 py-2.5 border-t border-border/50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold leading-4 truncate">Coordenador de Prod. Digitais</p>
+                    <p className="text-[10px] text-muted-foreground leading-4">Sicoob Planalto Central</p>
+                  </div>
+                  <span className="flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
+                    Aguardando confirmação
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* NOTIFICAÇÕES */}
+          {notifsItems.length > 0 && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Notificações</p>
+                {notifsItems.length > CP_PREVIEW && (
+                  <button type="button" onClick={() => setView("notifs-list")} className="text-[10px] font-semibold text-primary hover:underline">
+                    Ver todas ({notifsItems.length}) →
+                  </button>
+                )}
+              </div>
+              <div>
+                {notifsItems.slice(0, CP_PREVIEW).map((n, i) =>
+                  renderNotifRow(n, i === Math.min(notifsItems.length, CP_PREVIEW) - 1)
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ── NÍVEL 2: Lista completa de vagas ──────────── */}
+      {view === "vagas-list" && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3">
+          <div className="rounded-xl border border-border overflow-hidden">
+            {vagasItems.map((v, i) => renderVagaRow(v, i === vagasItems.length - 1))}
+          </div>
+        </div>
+      )}
+
+      {/* ── NÍVEL 2: Lista completa de cursos ─────────── */}
+      {view === "cursos-list" && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3">
+          <div className="rounded-xl border border-border overflow-hidden">
+            {cursosItems.map((c, i) => renderCursoRow(c, i === cursosItems.length - 1))}
+          </div>
+        </div>
+      )}
+
+      {/* ── NÍVEL 2: Lista completa de notificações ───── */}
+      {view === "notifs-list" && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3">
+          <div className="rounded-xl border border-border overflow-hidden">
+            {notifsItems.map((n, i) => renderNotifRow(n, i === notifsItems.length - 1))}
+          </div>
+        </div>
+      )}
+
+      {/* ── NÍVEL 2: Detalhe da candidatura ───────────── */}
+      {view === "candidatura" && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</p>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                !isRegistered ? "bg-orange-100 text-orange-600" : isReactivation ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600"
+              }`}>
+                {!isRegistered ? "Aguardando confirmação" : isReactivation ? "Em análise" : "Em triagem"}
+              </span>
+            </div>
+            <div className="px-3 py-3 space-y-1">
+              <p className="text-xs font-semibold">Gerente Adm. Financeiro</p>
+              <p className="text-[11px] text-muted-foreground">Sicoob Dom Eliseu · Dom Eliseu / PA</p>
+              <p className="text-[10px] text-muted-foreground/60">{isRegistered ? "Candidatura registrada · 21 jun 2026" : "Saiu para a plataforma da cooperativa"}</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Match Card</p>
+              <span className="text-[10px] font-bold text-primary">87% match</span>
+            </div>
+            <button type="button" onClick={() => setView("matchcard")} className="w-full px-3 py-3 hover:bg-muted/30 transition-colors text-left">
+              <p className="text-xs font-semibold leading-4">Profissional de tecnologia, produto e dados</p>
+              <p className="text-[10px] text-muted-foreground leading-4 mt-0.5">Designer de Produto · UX, automação e transformação digital</p>
+              <p className="text-[10px] text-primary font-medium mt-2">Ver Match Card completo →</p>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── NÍVEL 3: Match Card completo ───────────────── */}
+      {view === "matchcard" && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
+          <div className="rounded-xl border border-primary/30 overflow-hidden" style={{ background: "linear-gradient(135deg,#FF904712 0%,transparent 70%)" }}>
+            <div className="px-3 py-2 border-b border-primary/20 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-primary flex-none" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-primary/70">Match Card</p>
+              </div>
+              <span className="text-[10px] font-bold text-primary">87% match</span>
+            </div>
+            <div className="px-3 py-3">
+              <p className="text-xs font-semibold">Gerente Administrativo Financeiro</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Sicoob Dom Eliseu · Dom Eliseu / PA</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Adaptações ao EmpreCard base</p>
+            </div>
+            <div className="px-3 py-3 space-y-1.5">
+              {[
+                "Skills destacadas: Gestão financeira, Análise de dados, Automação",
+                "Subtítulo adaptado para cooperativa de crédito",
+                "Essência reframada com foco em gestão estratégica",
+                "Experiências ordenadas por relevância financeira",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-1.5">
+                  <span className="text-muted-foreground text-[10px] flex-none mt-px">·</span>
+                  <p className="text-[11px] text-muted-foreground leading-4">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <button type="button" onClick={() => generateEmpreMatchPdf()} className="w-full flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors">
+              <Download className="w-3.5 h-3.5" />
+              Baixar Match Card
+            </button>
+            <Link href="/emprecards/1" className="w-full flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors">
+              Ver página completa
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      )}
+
     </aside>
   );
 }
@@ -1140,7 +1358,6 @@ function ProfileSidebar({ count, progress }: { count: number; progress: number }
   const hasSobreVoce  = count >= 14;
   const hasIdiomas    = count >= 14;
   const hasHabilidades = count >= 14;
-  const hasEmpreCard  = count >= 15;
 
   return (
     <aside className="flex flex-col w-full h-full overflow-hidden bg-card border-l border-border" aria-label="Perfil do candidato">
@@ -1272,19 +1489,6 @@ function ProfileSidebar({ count, progress }: { count: number; progress: number }
                   {s}
                 </span>
               ))}
-            </div>
-          </div>
-        )}
-        {hasEmpreCard && (
-          <div className="rounded-xl border border-primary/30 overflow-hidden animate-[proto-fade-in_0.5s_ease-out]"
-            style={{ background: "linear-gradient(135deg,#FF904712 0%,transparent 70%)" }}>
-            <div className="px-3 py-2 border-b border-primary/20 flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-primary flex-none" />
-              <p className="text-[10px] font-bold uppercase tracking-wide text-primary/70">EmpreCard criado</p>
-            </div>
-            <div className="px-3 py-2.5">
-              <p className="text-[11px] font-semibold">Profissional de tecnologia, produto e dados</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Designer de Produto · UX, automação e transformação digital</p>
             </div>
           </div>
         )}
@@ -1517,8 +1721,8 @@ function OpportunitiesCard() {
 
   function handleApply(jobTitle: string) {
     setApplied(jobTitle);
-    localStorage.setItem("proto_stage", "18");
-    window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 18 } }));
+    localStorage.setItem("proto_stage", "17");
+    window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 17 } }));
   }
 
   return (
@@ -1550,14 +1754,14 @@ function OpportunitiesCard() {
                 disabled={applied !== null}
                 className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
                   isApplied
-                    ? "border border-success/40 bg-success-soft text-success"
+                    ? "border border-primary/30 bg-primary/8 text-primary"
                     : applied !== null
                     ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
                     : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
                 }`}
               >
                 {isApplied
-                  ? <><Check className="w-3 h-3" /><span>Enviada</span></>
+                  ? <><RefreshCw className="w-3 h-3" /><span>Em preparação</span></>
                   : <><span>Candidatar-se</span><ArrowRight className="w-3 h-3" /></>
                 }
               </button>
@@ -1569,50 +1773,25 @@ function OpportunitiesCard() {
   );
 }
 
-function EmpreCardMessage({ onOpen }: { onOpen: () => void }) {
-  return (
-    <article className="rounded-[18px] border border-primary/15 bg-card overflow-hidden shadow-sm mt-4">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-orange/5">
-        <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-orange/18 text-orange flex-none">
-          <Sparkles className="w-3.5 h-3.5" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">EmpreCard criado</p>
-          <p className="text-sm font-medium truncate">Profissional de tecnologia, produto e dados</p>
-        </div>
-      </div>
-      <div className="p-4 bg-white">
-        <h3 className="text-base font-medium mb-3">Foco em automação com IA e transformação digital</h3>
-        <div className="flex flex-wrap gap-1.5">
-          {["Tecnologia", "Produto digital", "Dados", "Automação com IA", "Estratégia digital", "Desenvolvimento de produtos"].map((tag) => (
-            <span key={tag} className="inline-flex items-center min-h-[22px] px-2 rounded-full bg-muted text-foreground text-xs whitespace-nowrap">
-              {tag}
-            </span>
-          ))}
-          <span className="inline-flex items-center min-h-[22px] px-0 text-muted-foreground text-xs">+3</span>
-        </div>
-      </div>
-      <div className="flex justify-end px-4 py-3 border-t border-primary/10 bg-white">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex items-center gap-2 min-h-8 px-3 rounded-lg border border-primary/16 bg-white text-foreground text-xs font-medium shadow-sm hover:bg-muted transition-colors"
-        >
-          Ver meu EmpreCard
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </article>
-  );
-}
-
 function PrereqCard() {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [courseStatus, setCourseStatus] = useState<Record<string, CourseStatus>>(
     () => statusFromPreset(null)
   );
   function handleDownload() {
-    generateCurriculoPdf();
+    generateEmpreMatchPdf();
+  }
+
+  function handleWizardComplete() {
+    setWizardOpen(false);
+    const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
+    if (cur <= 17) {
+      localStorage.setItem("proto_stage", "18");
+      localStorage.setItem("proto_mode", "animated");
+      window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 18, mode: "animated" } }));
+    }
+    window.open("/ats-vaga", "_blank", "noopener,noreferrer");
   }
 
   useEffect(() => {
@@ -1636,11 +1815,11 @@ function PrereqCard() {
         localStorage.setItem("proto_courses", preset);
         if (next === "done") {
           const currentStage = parseInt(localStorage.getItem("proto_stage") ?? "0");
-          if (currentStage < 19) {
+          if (currentStage < 18) {
             // Avança o fluxo: continua a animação a partir do estágio seguinte
-            localStorage.setItem("proto_stage", "19");
+            localStorage.setItem("proto_stage", "18");
             localStorage.setItem("proto_mode", "animated");
-            window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 19, mode: "animated" } }));
+            window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 18, mode: "animated" } }));
           } else {
             // Já passou desta etapa — só atualiza o preset sem reiniciar
             window.dispatchEvent(new CustomEvent("proto-courses-update", { detail: {} }));
@@ -1675,6 +1854,7 @@ function PrereqCard() {
   const pendingCount = courses.filter(c => c.status !== "done").length;
 
   return (
+    <>
     <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
         <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
@@ -1772,7 +1952,7 @@ function PrereqCard() {
 
       {allDone ? (
         <>
-          {/* Match Card gerado para a vaga */}
+          {/* EmpreMatch gerado para a vaga */}
           <div className="border-t border-primary/15 px-4 py-3.5" style={{ background: "linear-gradient(135deg,rgba(109,0,112,.04) 0%,transparent 70%)" }}>
             <div className="flex items-center gap-2 mb-2.5">
               <span className="w-5 h-5 flex items-center justify-center rounded-md bg-primary/10 flex-none">
@@ -1798,7 +1978,7 @@ function PrereqCard() {
               Pré-requisitos concluídos — vaga liberada!
             </div>
             <p className="mt-1 ml-6 text-xs text-success/70 leading-relaxed">
-              Seu Match Card está pronto. Confirme para enviar a candidatura.
+              Seu Match Card está pronto. Candidate-se pela plataforma da cooperativa.
             </p>
             <div className="ml-6 mt-3 flex items-center gap-2 flex-wrap">
               <button
@@ -1806,24 +1986,15 @@ function PrereqCard() {
                 onClick={handleDownload}
                 className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-card text-muted-foreground text-xs font-medium hover:bg-muted transition-colors"
               >
-                <Download className="w-3 h-3" />Baixar MatchCard
+                <Download className="w-3 h-3" />Baixar Match Card
               </button>
-              <a
-                href="/ats-vaga"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
-                  if (cur <= 18) {
-                    localStorage.setItem("proto_stage", "19");
-                    localStorage.setItem("proto_mode", "animated");
-                    window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 19, mode: "animated" } }));
-                  }
-                }}
+              <button
+                type="button"
+                onClick={() => setWizardOpen(true)}
                 className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-success/40 bg-card text-success text-xs font-semibold hover:bg-success/8 transition-colors"
               >
-                Confirmar candidatura <ArrowRight className="w-3 h-3" />
-              </a>
+                Candidatar-se <ArrowRight className="w-3 h-3" />
+              </button>
             </div>
           </div>
         </>
@@ -1837,11 +2008,19 @@ function PrereqCard() {
             Conclua todos os cursos acima para criar seu Match Card e candidatar-se.
           </p>
           <span className="ml-[22px] mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border text-muted-foreground/40 text-xs font-semibold cursor-not-allowed select-none">
-            Confirmar candidatura <ArrowRight className="w-3 h-3" />
+            Candidatar-se <ArrowRight className="w-3 h-3" />
           </span>
         </div>
       )}
     </article>
+    <ExternalApplicationWizard
+      open={wizardOpen}
+      vagaTitulo="Gerente Administrativo Financeiro"
+      cooperativa="Sicoob Dom Eliseu"
+      onClose={() => setWizardOpen(false)}
+      onComplete={handleWizardComplete}
+    />
+    </>
   );
 }
 
@@ -1912,13 +2091,23 @@ function ProfileReactivationCard() {
 }
 
 const JOBS_REACTIVATION = [
-  { title: "Coordenador de Produtos Digitais", city: "Brasília", state: "DF" },
-  { title: "Analista de Transformação Digital", city: "Florianópolis", state: "SC" },
-  { title: "Gerente de Inovação e Tecnologia", city: "Porto Alegre", state: "RS" },
+  { title: "Coordenador de Produtos Digitais", city: "Brasília", state: "DF", prereqsOk: true, prereqLabel: "Pré-requisitos cumpridos" },
+  { title: "Analista de Transformação Digital", city: "Florianópolis", state: "SC", prereqsOk: false, prereqLabel: "1 curso novo · Design de Sistemas Cooperativos (8H)" },
+  { title: "Gerente de Inovação e Tecnologia", city: "Porto Alegre", state: "RS", prereqsOk: false, prereqLabel: "1 curso novo · Governança Cooperativa (6H)" },
 ] as const;
 
 function ReactivationOpportunitiesCard() {
   const [applied, setApplied] = useState<string | null>(null);
+
+  function handleApply(jobTitle: string) {
+    setApplied(jobTitle);
+    const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
+    if (cur < 24) {
+      localStorage.setItem("proto_stage", "24");
+      localStorage.setItem("proto_mode", "animated");
+      window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 24, mode: "animated" } }));
+    }
+  }
 
   return (
     <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
@@ -1942,24 +2131,40 @@ function ReactivationOpportunitiesCard() {
                   <MapPin className="w-3 h-3 flex-none" />
                   <span>{job.city} / {job.state}</span>
                 </div>
+                <p className={`flex items-center gap-1 mt-1 text-[11px] font-medium ${job.prereqsOk ? "text-success" : "text-muted-foreground"}`}>
+                  {job.prereqsOk
+                    ? <><CheckCircle className="w-3 h-3 flex-none" />{job.prereqLabel}</>
+                    : <><GraduationCap className="w-3 h-3 flex-none" />{job.prereqLabel}</>
+                  }
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setApplied(job.title)}
-                disabled={applied !== null}
-                className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
-                  isApplied
-                    ? "border border-success/40 bg-success-soft text-success"
-                    : applied !== null
-                    ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
-                    : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
-                }`}
-              >
-                {isApplied
-                  ? <><Check className="w-3 h-3" /><span>Enviada</span></>
-                  : <><span>Candidatar-se</span><ArrowRight className="w-3 h-3" /></>
-                }
-              </button>
+              {job.prereqsOk ? (
+                <button
+                  type="button"
+                  onClick={() => handleApply(job.title)}
+                  disabled={applied !== null}
+                  className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
+                    isApplied
+                      ? "border border-primary/30 bg-primary/8 text-primary"
+                      : applied !== null
+                      ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
+                      : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
+                  }`}
+                >
+                  {isApplied
+                    ? <><Check className="w-3 h-3" /><span>Pronta</span></>
+                    : <><span>Candidatar-se</span><ArrowRight className="w-3 h-3" /></>
+                  }
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={applied !== null}
+                  className="flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-border text-muted-foreground text-xs font-semibold hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>Fazer curso</span><ArrowRight className="w-3 h-3" />
+                </button>
+              )}
             </div>
           );
         })}
@@ -1968,14 +2173,149 @@ function ReactivationOpportunitiesCard() {
   );
 }
 
+/* ── 2ª candidatura: vaga liberada com pré-requisitos aproveitados ─────── */
+
+const VAGA_LIBERADA = {
+  titulo: "Coordenador de Produtos Digitais",
+  cooperativa: "Sicoob Planalto Central",
+  local: "Brasília, DF",
+  match: "91% match",
+  cursosAproveitados: [
+    { nome: "Cooperativismo - Primeiras Lições", horas: "4H" },
+    { nome: "Gestão Estratégica de Finanças em Cooperativas", horas: "13H" },
+  ],
+  adaptacoes: [
+    "Skills destacadas: Produto digital, Estratégia digital, Automação",
+    "Subtítulo adaptado para produto em cooperativa de crédito",
+    "Experiências ordenadas por relevância em produto",
+  ],
+  pdf: {
+    titulo: "Coordenador de Produtos Digitais",
+    cooperativa: "Sicoob Planalto Central",
+    subtitulo: "Produto Digital · Tecnologia e Dados",
+    skillsDestaque: ["Produto digital", "Estratégia digital", "Automação com IA"],
+    filename: "MatchCard_Bolivar_Alencastro_Coordenador_Produtos_Digitais.pdf",
+    resumo:
+      "Profissional com 8 experiências em produto digital, dados e automação com IA, unindo visão " +
+      "estratégica e rigor analítico. Histórico de liderança em iniciativas multidisciplinares, " +
+      "descoberta e evolução de produtos e uso de indicadores para tomada de decisão — competências " +
+      "diretamente aplicáveis à coordenação de produtos digitais em ambiente cooperativista.",
+  },
+};
+
+function VagaLiberadaCard() {
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  function handleDownload() {
+    generateEmpreMatchPdf(VAGA_LIBERADA.pdf);
+  }
+
+  function handleWizardComplete() {
+    setWizardOpen(false);
+    window.open("/ats-vaga", "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <>
+    <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
+        <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
+          <GraduationCap className="w-3.5 h-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Pré-requisitos</p>
+          <p className="text-sm font-medium truncate">{VAGA_LIBERADA.titulo}</p>
+        </div>
+      </div>
+
+      <div className="p-3 space-y-2">
+        {VAGA_LIBERADA.cursosAproveitados.map((c) => (
+          <div key={c.nome} className="rounded-xl border border-success/35 bg-card overflow-hidden">
+            <div className="w-full flex items-center gap-2.5 px-3 py-2.5">
+              <span className="w-5 h-5 flex items-center justify-center rounded-full bg-success-soft text-success flex-none">
+                <CheckCircle className="w-3 h-3" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <strong className="block text-sm font-semibold leading-5 truncate">{c.nome}</strong>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="w-3 h-3" />{c.horas}
+                  </span>
+                  <span className="inline-flex items-center gap-0.5 h-[14px] px-1 rounded-full bg-success-soft text-success text-[10px] font-semibold">
+                    <Check className="w-2 h-2" />Concluído · certificado
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Match Card gerado para a vaga */}
+      <div className="border-t border-primary/15 px-4 py-3.5" style={{ background: "linear-gradient(135deg,rgba(109,0,112,.04) 0%,transparent 70%)" }}>
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="w-5 h-5 flex items-center justify-center rounded-md bg-primary/10 flex-none">
+            <Sparkles className="w-3 h-3 text-primary" />
+          </span>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-primary/50 flex-1">Match Card criado</p>
+          <span className="text-xs font-bold text-success">{VAGA_LIBERADA.match}</span>
+        </div>
+        <p className="text-xs font-semibold leading-5">{VAGA_LIBERADA.titulo}</p>
+        <p className="text-[11px] text-muted-foreground mb-2">{VAGA_LIBERADA.cooperativa} · {VAGA_LIBERADA.local}</p>
+        <p className="text-[11px] font-medium text-muted-foreground mb-1">Adaptações ao EmpreCard base:</p>
+        <ul className="text-[11px] text-muted-foreground space-y-0.5 leading-4">
+          {VAGA_LIBERADA.adaptacoes.map((a) => <li key={a}>· {a}</li>)}
+        </ul>
+      </div>
+
+      {/* Ações */}
+      <div className="border-t border-success/25 bg-success-soft px-4 py-3.5">
+        <div className="flex items-center gap-2 text-success text-sm font-semibold">
+          <CheckCircle className="w-4 h-4 flex-none" />
+          Você já cumpre os pré-requisitos — vaga liberada!
+        </div>
+        <p className="mt-1 ml-6 text-xs text-success/70 leading-relaxed">
+          Seus certificados do CapacitaCOOP valem para esta vaga. Candidate-se pela plataforma da cooperativa.
+        </p>
+        <div className="ml-6 mt-3 flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-card text-muted-foreground text-xs font-medium hover:bg-muted transition-colors"
+          >
+            <Download className="w-3 h-3" />Baixar Match Card
+          </button>
+          <button
+            type="button"
+            onClick={() => setWizardOpen(true)}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-success/40 bg-card text-success text-xs font-semibold hover:bg-success/8 transition-colors"
+          >
+            Candidatar-se <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    </article>
+    <ExternalApplicationWizard
+      open={wizardOpen}
+      vagaTitulo={VAGA_LIBERADA.titulo}
+      cooperativa={VAGA_LIBERADA.cooperativa}
+      variant="short"
+      onClose={() => setWizardOpen(false)}
+      onComplete={handleWizardComplete}
+      onDownload={handleDownload}
+    />
+    </>
+  );
+}
+
 /* ── Header — Versão A (produção) ─────────────────────────────────────── */
 
 /* ── Proto constants ───────────────────────────────────────────────────── */
 
 // 'ai' or 'user' for each of the 24 messages
-const MSG_TYPES = ["ai","user","ai","ai","ai","ai","user","ai","user","ai","ai","user","ai","user","ai","ai","user","ai","ai","user","ai","ai","user","ai"] as const;
+const MSG_TYPES = ["ai","user","ai","ai","ai","ai","user","ai","user","ai","ai","user","ai","user","ai","user","ai","ai","user","ai","ai","user","ai","ai"] as const;
 // ms to pause before revealing each message (for AI msgs: this precedes the typing indicator)
-const MSG_DELAYS = [0,1200,600,700,800,600,1200,600,1200,600,800,1200,600,1200,1000,1000,1200,700,1400,1000,700,1600,1200,700];
+const MSG_DELAYS = [0,1200,600,700,800,600,1200,600,1200,600,800,1200,600,1200,1000,1200,700,1400,1000,700,1600,1200,700,900];
 const TYPING_MS = 1100; // how long the typing indicator shows
 
 function TypingIndicator() {
@@ -1997,6 +2337,8 @@ export default function AssistentePage() {
   const [voiceMode, setVoiceMode] = useState(false);
   const [layoutVariant, setLayoutVariant] = useState<"a" | "b">("a");
   const [forcedPanel, setForcedPanel] = useState<import("@/components/layout/topbar").PanelKey | null>(null);
+  const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
+  const [mobileRightOpen, setMobileRightOpen] = useState(false);
   const [commandsOpen, setCommandsOpen] = useState(false);
   const commandsRef = useRef<HTMLDivElement>(null);
   const [activeCommand, setActiveCommand] = useState<string | null>(null);
@@ -2081,6 +2423,16 @@ export default function AssistentePage() {
   }, []);
 
   useEffect(() => {
+    function handleApplyJob(e: Event) {
+      const jobTitle = (e as CustomEvent<string>).detail;
+      setRawInput(`Quero me candidatar para ${jobTitle}`);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
+    window.addEventListener("proto-apply-job", handleApplyJob);
+    return () => window.removeEventListener("proto-apply-job", handleApplyJob);
+  }, []);
+
+  useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (commandsRef.current && !commandsRef.current.contains(e.target as Node)) {
         setCommandsOpen(false);
@@ -2125,7 +2477,10 @@ export default function AssistentePage() {
   return (
     <div className="h-dvh flex flex-col overflow-hidden">
       {layoutVariant === "a" ? (
-        <TopbarA />
+        <TopbarA
+          onMenuOpen={() => { setMobileLeftOpen(true); setMobileRightOpen(false); }}
+          onProfileOpen={() => { setMobileRightOpen(true); setMobileLeftOpen(false); }}
+        />
       ) : (
         <Topbar
           profileProgress={aiProgress}
@@ -2144,7 +2499,7 @@ export default function AssistentePage() {
         {/* Left sidebar — Versão A */}
         {layoutVariant === "a" && (
           <div className="hidden lg:flex flex-none w-[240px] overflow-hidden">
-            {visibleCount >= 16
+            {visibleCount >= 15
               ? <ContextualPanel count={visibleCount} progress={aiProgress} coursePreset={coursePreset} />
               : <JourneyPanel count={visibleCount} coursePreset={coursePreset} progress={aiProgress} />
             }
@@ -2436,21 +2791,6 @@ export default function AssistentePage() {
                   <UserAvatar />
                 </article>
 
-                {/* Assistant message 3 — EmpreCard */}
-                <article className="flex items-start gap-3">
-                  <AIAvatar />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
-                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
-                      <span>10:37</span>
-                    </div>
-                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Pronto! Seu EmpreCard foi criado — seu Currículo 2.0 no cooperativismo.</p>
-                    </div>
-                    <EmpreCardMessage onOpen={() => setForcedPanel("emprecard")} />
-                  </div>
-                </article>
-
                 {/* ── ETAPA 4: CAPACITAÇÃO / VAGAS ─────────────── */}
 
                 {/* AI: Oportunidades + vagas */}
@@ -2583,6 +2923,21 @@ export default function AssistentePage() {
                       <p>Claro! Com seu perfil atualizado, encontrei novas vagas que combinam muito com você.</p>
                     </div>
                     <ReactivationOpportunitiesCard />
+                  </div>
+                </article>
+
+                {/* M24 — AI: 2ª candidatura, vaga liberada com certificados aproveitados */}
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>09:18</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Boa escolha! Você já cumpre os pré-requisitos dessa vaga com os cursos que concluiu — criei seu Match Card na hora. Candidate-se pela plataforma da cooperativa e me avise quando finalizar.</p>
+                    </div>
+                    <VagaLiberadaCard />
                   </div>
                 </article>
 
@@ -2739,6 +3094,32 @@ export default function AssistentePage() {
           </div>
         )}
       </main>
+
+      {/* ── Mobile drawers (Versão A only) ─────────────────── */}
+      {layoutVariant === "a" && (
+        <>
+          {/* Backdrop */}
+          {(mobileLeftOpen || mobileRightOpen) && (
+            <div
+              className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+              onClick={() => { setMobileLeftOpen(false); setMobileRightOpen(false); }}
+            />
+          )}
+
+          {/* Left drawer — "Seu espaço" */}
+          <div className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-background shadow-xl transition-transform duration-300 ease-out lg:hidden flex flex-col overflow-hidden ${mobileLeftOpen ? "translate-x-0" : "-translate-x-full"}`}>
+            {visibleCount >= 15
+              ? <ContextualPanel count={visibleCount} progress={aiProgress} coursePreset={coursePreset} />
+              : <JourneyPanel count={visibleCount} coursePreset={coursePreset} progress={aiProgress} />
+            }
+          </div>
+
+          {/* Right drawer — Perfil */}
+          <div className={`fixed inset-y-0 right-0 z-50 w-[280px] bg-background shadow-xl transition-transform duration-300 ease-out lg:hidden flex flex-col overflow-hidden ${mobileRightOpen ? "translate-x-0" : "translate-x-full"}`}>
+            <ProfileSidebar count={visibleCount} progress={aiProgress} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -21,12 +21,9 @@ export default function EmprecardsList() {
       <main className="flex-1 min-h-0 overflow-y-auto">
         <div className="w-full max-w-[800px] mx-auto px-4 py-8">
           <section className="bg-card border border-border rounded-2xl shadow-sm p-8">
-            <div className="flex items-start justify-between gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
               <div>
-                <h1
-                  className="text-[32px] font-semibold leading-9"
-                  style={{ fontFamily: "Lora, Georgia, serif" }}
-                >
+                <h1 className="text-[28px] sm:text-[32px] font-semibold leading-9">
                   Meus Emprecards
                 </h1>
                 <p className="mt-1 text-base text-muted-foreground">
@@ -35,7 +32,7 @@ export default function EmprecardsList() {
               </div>
               <Link
                 href="/assistente"
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium shadow-sm hover:bg-brand-strong transition-colors whitespace-nowrap"
+                className="self-start inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium shadow-sm hover:bg-brand-strong transition-colors whitespace-nowrap"
               >
                 <Sparkles className="w-4 h-4" />
                 Novo Emprecard

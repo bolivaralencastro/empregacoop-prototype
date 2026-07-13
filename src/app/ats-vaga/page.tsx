@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { generateCurriculoPdf } from "@/lib/generateCurriculoPdf";
+import { generateEmpreMatchPdf } from "@/lib/generateEmpreMatchPdf";
 
 const SICOOB_BLUE = "#004B8D";
 const SICOOB_DARK = "#003570";
@@ -269,7 +269,7 @@ export default function ATSVagaPage() {
                         strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <p className="text-xs font-medium text-green-700 flex-1 truncate">
-                      Bolivar_Alencastro_Designer.pdf
+                      MatchCard_Bolivar_Alencastro_Gerente_Adm_Financeiro.pdf
                     </p>
                     <button type="button" onClick={() => setCvAttached(false)}
                       className="text-green-400 hover:text-green-600 text-xs">
@@ -293,9 +293,9 @@ export default function ATSVagaPage() {
                   </button>
                 )}
                 <p className="text-[11px] text-gray-400 leading-4">
-                  <button type="button" onClick={() => generateCurriculoPdf()}
+                  <button type="button" onClick={() => generateEmpreMatchPdf()}
                     className="underline hover:text-gray-600 transition-colors">
-                    Baixe seu currículo do EmpregaCOOP
+                    Baixe seu Match Card
                   </button>{" "}e anexe aqui.
                 </p>
               </div>
