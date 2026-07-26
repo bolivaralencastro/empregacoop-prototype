@@ -269,7 +269,7 @@ export default function ATSVagaPage() {
                         strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <p className="text-xs font-medium text-green-700 flex-1 truncate">
-                      MatchCard_Bolivar_Alencastro_Gerente_Adm_Financeiro.pdf
+                      EmpreCard_Bolivar_Alencastro_Gerente_Adm_Financeiro.pdf
                     </p>
                     <button type="button" onClick={() => setCvAttached(false)}
                       className="text-green-400 hover:text-green-600 text-xs">
@@ -295,7 +295,7 @@ export default function ATSVagaPage() {
                 <p className="text-[11px] text-gray-400 leading-4">
                   <button type="button" onClick={() => generateEmpreMatchPdf()}
                     className="underline hover:text-gray-600 transition-colors">
-                    Baixe seu Match Card
+                    Baixe seu EmpreCard
                   </button>{" "}e anexe aqui.
                 </p>
               </div>

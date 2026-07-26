@@ -170,7 +170,7 @@ export default function CurriculoPdfPage() {
             background: "#5c0060", color: "#fff",
             borderRadius: 100, fontSize: 11, fontWeight: 600,
           }}>
-            Match Card · {VAGA.titulo} · {VAGA.cooperativa}
+            EmpreCard · {VAGA.titulo} · {VAGA.cooperativa}
           </span>
         </div>
 

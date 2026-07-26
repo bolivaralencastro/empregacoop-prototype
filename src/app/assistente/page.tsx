@@ -86,16 +86,23 @@ function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
   if (n < 14) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "3/6", context: "Coletando objetivo profissional",   substeps: subs(2, 2) }, ...TAIL];
   if (n < 15) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "4/6", context: "Coletando experiência profissional", substeps: subs(3, 3) }, ...TAIL];
   if (n < 16) return [DA, DO, { id: 3, label: "Perfil", status: "current", count: "6/6", context: "Perfil completo",                   substeps: subs(6, -1) }, ...TAIL];
-  // Reativação: fortalecer perfil e nova candidatura
-  if (n >= 21) {
+  // Reativação: fortalecer perfil e buscar novas vagas
+  if (n >= 23) {
+    const reactivationContext = n >= 27
+      ? "Nova candidatura registrada"
+      : n >= 25
+      ? "Confirmando nova candidatura"
+      : n >= 24
+      ? "Nova vaga selecionada"
+      : "Buscando novas vagas";
     return [
       DA, DO, DP, DC, DV, DCA,
       { id: 7, label: "Reativação", status: "current" as const,
-        context: n >= 23 ? "Nova candidatura disponível" : "Fortalecendo perfil" },
+        context: reactivationContext },
     ];
   }
   // Candidatura em acompanhamento
-  if (n >= 18) {
+  if (n >= 20) {
     return [
       DA, DO, DP, DC, DV,
       { id: 6, label: "Candidaturas", status: "current" as const,
@@ -104,19 +111,25 @@ function getJourneySteps(n: number, cp: CoursePreset | null): JStep[] {
     ];
   }
 
-  const c2done = cp === "done";
-  const c2progress = cp === "progress";
+  const courseDone = cp === "done";
+  const courseProgress = cp === "progress";
+  const courseOpen = cp === "open";
   const capSubs: StepSub[] = [
-    { label: "Cooperativismo - Primeiras Licoes", done: true },
-    { label: "Gestao Estrategica de Financas", done: c2done, current: c2progress },
+    { label: "Cooperativismo - Primeiras Lições", done: courseDone, current: courseOpen || courseProgress },
   ];
   return [
     DA, DO, DP,
-    { id: 4, label: "Capacitação", status: "current",
-      context: c2done ? "Pré-requisito concluído" : c2progress ? "Curso em andamento" : "Analisando pré-requisitos",
-      substeps: capSubs },
-    c2done ? DV : l(5, "Vagas", "1 vaga compatível identificada"),
-    l(6, "Candidaturas", c2done ? "Candidatura disponível →" : "Envie seu EmpreCard para vagas"),
+    courseDone
+      ? DC
+      : { id: 4, label: "Capacitação", status: "current",
+          context: courseProgress ? "Curso obrigatório em andamento" : courseOpen ? "Curso obrigatório aberto" : "Curso obrigatório disponível",
+          substeps: capSubs },
+    courseDone
+      ? { id: 5, label: "Vagas", status: "current", context: n >= 19 ? "Vaga selecionada" : "Vagas desbloqueadas" }
+      : l(5, "Vagas", "Disponível após concluir o curso"),
+    courseDone
+      ? l(6, "Candidaturas", "Selecione uma vaga para se candidatar")
+      : l(6, "Candidaturas", "Disponível após concluir o curso"),
     l(7, "Reativação", "Retorne quando quiser"),
   ];
 }
@@ -136,15 +149,15 @@ function getProfileProgress(n: number): number {
 
 /* ── PrereqCard helpers ────────────────────────────────────────────────── */
 
-const C1 = "Cooperativismo - Primeiras Lições";
-const C2 = "Gestão Estratégica de Finanças em Cooperativas";
+const REQUIRED_COURSE = "Cooperativismo - Primeiras Lições";
 
-type CourseStatus = "idle" | "progress" | "done";
+type CourseStatus = "idle" | "open" | "progress" | "done";
 
 function statusFromPreset(preset: CoursePreset | null): Record<string, CourseStatus> {
-  if (preset === "progress") return { [C1]: "done", [C2]: "progress" };
-  if (preset === "done")     return { [C1]: "done", [C2]: "done" };
-  return                            { [C1]: "done", [C2]: "idle" };
+  if (preset === "open")     return { [REQUIRED_COURSE]: "open" };
+  if (preset === "progress") return { [REQUIRED_COURSE]: "progress" };
+  if (preset === "done")     return { [REQUIRED_COURSE]: "done" };
+  return                            { [REQUIRED_COURSE]: "idle" };
 }
 
 /* ── Avatars ───────────────────────────────────────────────────────────── */
@@ -287,80 +300,215 @@ function JourneyPanel({ count, coursePreset, progress, onClose }: { count: numbe
 
 /* ── Contextual Panel (Versão A · fase ativa) ──────────────────────────── */
 
-type CPView = "home" | "candidatura" | "matchcard" | "vagas-list" | "cursos-list" | "notifs-list";
+type CPView = "home" | "vaga" | "candidatura" | "matchcard" | "vagas-list" | "cursos-list" | "notifs-list";
 
-type VagaRow   = { title: string; location: string; status: "open" | "awaiting" | "submitted" };
+type VagaRow = {
+  title: string;
+  location: string;
+  status: "open" | "awaiting" | "submitted";
+  area?: string;
+  modality?: string;
+  description?: string;
+  atsHref?: string;
+};
 type CursoRow  = { title: string; hours: string; status: "done" | "progress" | "new" | "locked"; dim?: boolean };
 type NotifRow  = { text: string; sub: string };
+type ApplicationId = "gerente-financeiro" | "coordenador-produtos";
+type ApplicationStatus = "enviada" | "triagem" | "analise" | "entrevista" | "aprovada" | "encerrada";
+
+type ApplicationInfo = {
+  id: ApplicationId;
+  title: string;
+  shortTitle: string;
+  cooperative: string;
+  location: string;
+  date: string;
+  area: string;
+  modality: string;
+  description: string;
+  match: string;
+  atsHref: string;
+  empreCardTitle: string;
+  empreCardDescription: string;
+  empreCardAdaptations: string[];
+};
+
+const APPLICATION_STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
+  { value: "enviada", label: "Candidatura enviada" },
+  { value: "triagem", label: "Em triagem" },
+  { value: "analise", label: "Em análise" },
+  { value: "entrevista", label: "Entrevista" },
+  { value: "aprovada", label: "Aprovada" },
+  { value: "encerrada", label: "Processo encerrado" },
+];
+
+const APPLICATION_STATUS_STYLES: Record<ApplicationStatus, string> = {
+  enviada: "bg-primary/10 text-primary",
+  triagem: "bg-orange-100 text-orange-600",
+  analise: "bg-blue-100 text-blue-600",
+  entrevista: "bg-cyan-100 text-cyan-700",
+  aprovada: "bg-green-100 text-green-700",
+  encerrada: "bg-muted text-muted-foreground",
+};
 
 const CP_PREVIEW = 3;
 
 function ContextualPanel({ count, progress, coursePreset }: { count: number; progress: number; coursePreset: CoursePreset | null }) {
   const [view, setView] = useState<CPView>("home");
+  const [selectedJob, setSelectedJob] = useState<VagaRow | null>(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<ApplicationId>("gerente-financeiro");
+  const [manualStatuses, setManualStatuses] = useState<Partial<Record<ApplicationId, ApplicationStatus>>>({});
 
-  const c2done          = coursePreset === "done";
-  const c2progress      = coursePreset === "progress";
-  const postCandidature = count >= 18;
-  const isRegistered    = count >= 20; // candidato voltou e confirmou a inscrição externa
-  const isReactivation  = count >= 21;
-  const secondApplication = count >= 24;
+  const courseDone      = coursePreset === "done";
+  const courseProgress  = coursePreset === "progress";
+  const courseOpen      = coursePreset === "open";
+  const postCandidature = count >= 20;
+  const isRegistered    = count >= 22; // candidato voltou e confirmou a inscrição externa
+  const isReactivation  = count >= 23;
+  const secondApplication = count >= 25;
+  const secondApplicationRegistered = count >= 27;
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const stored = localStorage.getItem("proto_application_statuses");
+      if (!stored) return;
+      try {
+        setManualStatuses(JSON.parse(stored) as Partial<Record<ApplicationId, ApplicationStatus>>);
+      } catch {
+        localStorage.removeItem("proto_application_statuses");
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   /* ── data arrays ──────────────────────────────── */
 
-  const cursosItems: CursoRow[] = (isReactivation || postCandidature)
-    ? [
-        { title: "Cooperativismo",                     hours: "4H",  status: "done" },
-        { title: "Gestão Financeira",                  hours: "13H", status: "done" },
-        { title: "Design de Sistemas Cooperativos",    hours: "8H",  status: "new" },
-        { title: "Liderança em Cooperativas",          hours: "6H",  status: "new" },
-        ...(isReactivation ? [{ title: "Gestão de Pessoas em Cooperativas", hours: "10H", status: "new" as const }] : []),
-      ]
-    : c2done
-    ? [
-        { title: "Cooperativismo",    hours: "4H",  status: "done" },
-        { title: "Gestão Financeira", hours: "13H", status: "done" },
-      ]
-    : c2progress
-    ? [
-        { title: "Cooperativismo",    hours: "4H",  status: "done", dim: true },
-        { title: "Gestão Financeira", hours: "13H", status: "progress" },
-      ]
-    : [
-        { title: "Cooperativismo",    hours: "4H",  status: "done", dim: true },
-        { title: "Gestão Financeira", hours: "13H", status: "locked" },
-      ];
+  const cursosItems: CursoRow[] = [
+    {
+      title: "Cooperativismo",
+      hours: "4H",
+      status: isReactivation || postCandidature || courseDone
+        ? "done"
+        : courseOpen || courseProgress
+        ? "progress"
+        : "locked",
+    },
+  ];
+
+  const applications: ApplicationInfo[] = [
+    {
+      id: "gerente-financeiro",
+      title: "Gerente Administrativo Financeiro",
+      shortTitle: "Gerente Adm. Financeiro",
+      cooperative: "Sicoob Dom Eliseu",
+      location: "Dom Eliseu / PA",
+      date: "21 jun. 2026",
+      area: "Financeiro",
+      modality: "Presencial",
+      description: "Liderar o planejamento financeiro, acompanhar indicadores e apoiar decisões estratégicas da cooperativa.",
+      match: "87% match",
+      atsHref: "/ats-vaga",
+      empreCardTitle: "Profissional de tecnologia, produto e dados",
+      empreCardDescription: "Designer de Produto · UX, automação e transformação digital",
+      empreCardAdaptations: [
+        "Skills destacadas: Gestão financeira, Análise de dados, Automação",
+        "Subtítulo adaptado para cooperativa de crédito",
+        "Essência reframada com foco em gestão estratégica",
+        "Experiências ordenadas por relevância financeira",
+      ],
+    },
+    ...(secondApplication
+      ? [{
+          id: "coordenador-produtos" as const,
+          title: "Coordenador de Produtos Digitais",
+          shortTitle: "Coordenador de Prod. Digitais",
+          cooperative: "Sicoob Planalto Central",
+          location: "Brasília / DF",
+          date: "26 jul. 2026",
+          area: "Produtos Digitais",
+          modality: "Híbrido",
+          description: "Coordenar a estratégia e a evolução de produtos digitais, conectando necessidades dos cooperados, tecnologia e resultados de negócio.",
+          match: "91% match",
+          atsHref: "/ats-vaga",
+          empreCardTitle: "EmpreCard personalizado para esta vaga",
+          empreCardDescription: "Produto digital · Estratégia digital, dados e automação com IA",
+          empreCardAdaptations: [
+            "Skills destacadas: Produto digital, Estratégia digital, Automação",
+            "Subtítulo adaptado para produto em cooperativa de crédito",
+            "Experiências ordenadas por relevância em produto",
+          ],
+        }]
+      : []),
+  ];
+
+  const selectedApplication = applications.find(({ id }) => id === selectedApplicationId) ?? applications[0];
+  const selectedIsRegistered = selectedApplication.id === "gerente-financeiro"
+    ? isRegistered
+    : secondApplicationRegistered;
+
+  function defaultApplicationStatus(id: ApplicationId): ApplicationStatus {
+    if (id === "gerente-financeiro" && isReactivation) return "analise";
+    return "enviada";
+  }
+
+  function applicationStatus(id: ApplicationId): ApplicationStatus {
+    return manualStatuses[id] ?? defaultApplicationStatus(id);
+  }
+
+  function applicationStatusLabel(status: ApplicationStatus): string {
+    return APPLICATION_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status;
+  }
+
+  function updateApplicationStatus(id: ApplicationId, status: ApplicationStatus) {
+    setManualStatuses((current) => {
+      const next = { ...current, [id]: status };
+      localStorage.setItem("proto_application_statuses", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function openApplication(application: ApplicationInfo) {
+    setSelectedApplicationId(application.id);
+    setView("candidatura");
+  }
+
+  function openJob(job: VagaRow) {
+    setSelectedJob(job);
+    setView("vaga");
+  }
+
+  const selectedStatus = applicationStatus(selectedApplication.id);
 
   const vagasItems: VagaRow[] = isReactivation
     ? [
-        { title: "Gerente Adm. Financeiro",            location: "Dom Eliseu / PA",   status: "open" },
-        { title: "Analista de Produtos Digitais",      location: "Brasília / DF",     status: "open" },
-        { title: "Coordenador de Inovação e IA",       location: "São Paulo / SP",    status: "open" },
-        { title: "Especialista em Crédito Rural",      location: "Cuiabá / MT",       status: "open" },
+        { title: "Gerente Adm. Financeiro", location: "Dom Eliseu / PA", status: "open", area: "Financeiro", modality: "Presencial", description: "Liderar o planejamento financeiro, acompanhar indicadores e apoiar decisões estratégicas da cooperativa.", atsHref: "/ats-vaga" },
+        { title: "Analista de Produtos Digitais", location: "Brasília / DF", status: "open", area: "Produtos Digitais", modality: "Híbrido", description: "Apoiar a evolução de produtos digitais com análise de dados, descoberta e acompanhamento de indicadores.", atsHref: "/ats-vaga" },
+        { title: "Coordenador de Inovação e IA", location: "São Paulo / SP", status: "open", area: "Inovação e Tecnologia", modality: "Híbrido", description: "Coordenar iniciativas de inovação, automação e inteligência artificial para gerar eficiência e novas soluções.", atsHref: "/ats-vaga" },
+        { title: "Especialista em Crédito Rural", location: "Cuiabá / MT", status: "open", area: "Crédito Rural", modality: "Presencial", description: "Analisar operações de crédito rural e apoiar decisões alinhadas às políticas da cooperativa.", atsHref: "/ats-vaga" },
       ]
     : postCandidature
     ? [
-        { title: "Gerente Adm. Financeiro",            location: "Dom Eliseu / PA",   status: isRegistered ? "submitted" : "awaiting" },
-        { title: "Analista de Projetos Cooperativos",  location: "Belém / PA",        status: "open" },
+        { title: "Gerente Adm. Financeiro", location: "Dom Eliseu / PA", status: isRegistered ? "submitted" : "awaiting", area: "Financeiro", modality: "Presencial", description: "Liderar o planejamento financeiro, acompanhar indicadores e apoiar decisões estratégicas da cooperativa.", atsHref: "/ats-vaga" },
+        { title: "Analista de Projetos Cooperativos", location: "Belém / PA", status: "open", area: "Projetos", modality: "Híbrido", description: "Apoiar o planejamento e a execução de projetos voltados ao desenvolvimento do cooperativismo.", atsHref: "/ats-vaga" },
       ]
-    : c2done
+    : courseDone
     ? [
-        { title: "Gerente Adm. Financeiro",            location: "Dom Eliseu / PA",   status: "open" },
-        { title: "Analista de Projetos Cooperativos",  location: "Belém / PA",        status: "open" },
+        { title: "Gerente Adm. Financeiro", location: "Dom Eliseu / PA", status: "open", area: "Financeiro", modality: "Presencial", description: "Liderar o planejamento financeiro, acompanhar indicadores e apoiar decisões estratégicas da cooperativa.", atsHref: "/ats-vaga" },
+        { title: "Analista de Projetos Cooperativos", location: "Belém / PA", status: "open", area: "Projetos", modality: "Híbrido", description: "Apoiar o planejamento e a execução de projetos voltados ao desenvolvimento do cooperativismo.", atsHref: "/ats-vaga" },
       ]
     : [];
 
   const notifsItems: NotifRow[] = isReactivation
     ? [
-        { text: "Candidatura vista pela cooperativa",   sub: "Sicoob Dom Eliseu · Há 2d" },
-        { text: "Perfil em destaque esta semana",       sub: "12 recrutadores viram seu EmpreCard" },
-        { text: "Nova vaga compatível disponível",      sub: "Especialista em Crédito Rural · 1d" },
-        { text: "Lembrete: atualize suas experiências", sub: "Atraia mais recrutadores" },
+        { text: "Atualize o status das candidaturas", sub: "Mantenha seu acompanhamento organizado" },
+        { text: "Nova vaga compatível disponível",    sub: "Especialista em Crédito Rural · 1d" },
+        { text: "Revise seu EmpreCard",                sub: "Mantenha experiências e competências atualizadas" },
       ]
     : postCandidature
     ? [
-        { text: "Candidatura em análise",  sub: "Sicoob Dom Eliseu · 21 jun" },
-        { text: "EmpreCard visualizado",   sub: "3 cooperativas viram seu perfil" },
-        { text: "Dica: adicione certificações", sub: "Aumente seu score de perfil" },
+        { text: "Registre o andamento da candidatura", sub: "O status é atualizado manualmente por você" },
+        { text: "EmpreCard pronto para novas vagas",   sub: "Use uma versão personalizada em cada candidatura" },
+        { text: "Dica: adicione certificações",        sub: "Mantenha seu perfil completo" },
       ]
     : [];
 
@@ -368,13 +516,15 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
 
   const viewTitle: Record<CPView, string> = {
     home:          "Seu espaço",
+    vaga:          "Detalhes da vaga",
     candidatura:   "Candidatura",
-    matchcard:     "Match Card",
+    matchcard:     "EmpreCard",
     "vagas-list":  "Vagas compatíveis",
     "cursos-list": "Cursos disponíveis",
     "notifs-list": "Notificações",
   };
   const viewBack: Partial<Record<CPView, CPView>> = {
+    vaga:          "home",
     candidatura:   "home",
     matchcard:     "candidatura",
     "vagas-list":  "home",
@@ -416,19 +566,34 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
 
   function renderVagaRow(vaga: VagaRow, last: boolean) {
     const border = last ? "" : "border-b border-border/50";
+    const relatedApplication = applications.find(({ shortTitle }) => shortTitle === vaga.title);
     if (vaga.status === "awaiting") return (
-      <div key={vaga.title} className={`flex items-center gap-2.5 px-3 py-2.5 ${border} opacity-80`}>
-        <RefreshCw className="w-3.5 h-3.5 text-orange flex-none" />
-        <div className="flex-1 min-w-0"><p className="text-xs font-medium leading-4 truncate">{vaga.title}</p><p className="text-[10px] text-muted-foreground leading-4">{vaga.location}</p></div>
-        <span className="flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">Aguardando confirmação</span>
-      </div>
+      <button
+        key={vaga.title}
+        type="button"
+        onClick={() => relatedApplication ? openApplication(relatedApplication) : openJob(vaga)}
+        className={`w-full px-3 py-2.5 text-left hover:bg-muted/30 transition-colors ${border} opacity-80`}
+      >
+        <div className="flex items-center gap-2.5">
+          <RefreshCw className="w-3.5 h-3.5 text-orange flex-none" />
+          <div className="flex-1 min-w-0"><p className="text-xs font-medium leading-4 truncate">{vaga.title}</p><p className="text-[10px] text-muted-foreground leading-4">{vaga.location}</p></div>
+        </div>
+        <span className="mt-1.5 ml-6 inline-flex text-[9px] leading-3 font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-orange-100 text-orange-600">
+          Aguardando confirmação
+        </span>
+      </button>
     );
     if (vaga.status === "submitted") return (
-      <div key={vaga.title} className={`flex items-center gap-2.5 px-3 py-2.5 ${border} opacity-60`}>
+      <button
+        key={vaga.title}
+        type="button"
+        onClick={() => relatedApplication ? openApplication(relatedApplication) : openJob(vaga)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-muted/30 transition-colors ${border}`}
+      >
         <Check className="w-3.5 h-3.5 text-success flex-none" />
         <div className="flex-1 min-w-0"><p className="text-xs font-medium leading-4 truncate">{vaga.title}</p><p className="text-[10px] text-muted-foreground leading-4">{vaga.location}</p></div>
-        <span className="flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Registrada</span>
-      </div>
+        <span className="flex-none text-[9px] font-semibold text-primary">Ver detalhes →</span>
+      </button>
     );
     return (
       <div key={vaga.title} className={`flex items-center gap-2 px-3 py-2.5 ${border}`}>
@@ -436,8 +601,8 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
           <p className="text-xs font-semibold leading-4 truncate">{vaga.title}</p>
           <div className="flex items-center gap-1 mt-0.5"><MapPin className="w-2.5 h-2.5 text-muted-foreground/60 flex-none" /><p className="text-[10px] text-muted-foreground leading-4">{vaga.location}</p></div>
         </div>
-        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('proto-apply-job', { detail: vaga.title }))} className="flex-none text-[10px] font-semibold text-primary whitespace-nowrap hover:underline">
-          Candidatar-se →
+        <button type="button" onClick={() => openJob(vaga)} className="flex-none text-[10px] font-semibold text-primary whitespace-nowrap hover:underline">
+          Ver vaga →
         </button>
       </div>
     );
@@ -486,7 +651,7 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
           {/* CURSOS */}
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Cursos</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Curso obrigatório</p>
               {cursosItems.length > CP_PREVIEW && (
                 <button type="button" onClick={() => setView("cursos-list")} className="text-[10px] font-semibold text-primary hover:underline">
                   Ver todos ({cursosItems.length}) →
@@ -517,7 +682,7 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
             ) : (
               <div className="flex items-center gap-2.5 px-3 py-2.5 opacity-45">
                 <span className="w-6 h-6 flex items-center justify-center rounded-lg border border-border flex-none"><Lock className="w-3 h-3 text-muted-foreground" /></span>
-                <div className="flex-1 min-w-0"><p className="text-xs font-semibold leading-4">Gerente Adm. Financeiro</p><p className="text-[10px] text-muted-foreground leading-4">Conclua os cursos primeiro</p></div>
+                <div className="flex-1 min-w-0"><p className="text-xs font-semibold leading-4">Vagas compatíveis</p><p className="text-[10px] text-muted-foreground leading-4">Conclua o curso obrigatório primeiro</p></div>
               </div>
             )}
           </div>
@@ -528,28 +693,35 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
               <div className="px-3 py-2 border-b border-border bg-muted/30">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Candidaturas</p>
               </div>
-              <button type="button" onClick={() => setView("candidatura")} className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/30 transition-colors text-left">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold leading-4 truncate">Gerente Adm. Financeiro</p>
-                  <p className="text-[10px] text-muted-foreground leading-4">Sicoob Dom Eliseu · 21 jun</p>
-                </div>
-                <span className={`flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                  !isRegistered ? "bg-orange-100 text-orange-600" : isReactivation ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600"
-                }`}>
-                  {!isRegistered ? "Aguardando confirmação" : isReactivation ? "Em análise" : "Em triagem"}
-                </span>
-              </button>
-              {secondApplication && (
-                <div className="w-full flex items-center gap-2.5 px-3 py-2.5 border-t border-border/50">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold leading-4 truncate">Coordenador de Prod. Digitais</p>
-                    <p className="text-[10px] text-muted-foreground leading-4">Sicoob Planalto Central</p>
-                  </div>
-                  <span className="flex-none text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
-                    Aguardando confirmação
-                  </span>
-                </div>
-              )}
+              {applications.map((application, index) => {
+                const registered = application.id === "gerente-financeiro"
+                  ? isRegistered
+                  : secondApplicationRegistered;
+                const status = applicationStatus(application.id);
+                return (
+                  <button
+                    key={application.id}
+                    type="button"
+                    onClick={() => openApplication(application)}
+                    className={`w-full px-3 py-2.5 hover:bg-muted/30 transition-colors text-left ${
+                      index > 0 ? "border-t border-border/50" : ""
+                    }`}
+                  >
+                    <p className="text-xs font-semibold leading-4 truncate">{application.shortTitle}</p>
+                    <p className="text-[10px] text-muted-foreground leading-4 truncate">
+                      {application.cooperative} · {application.date.replace(". 2026", "")}
+                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className={`inline-flex max-w-[120px] text-[9px] leading-3 font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                        registered ? APPLICATION_STATUS_STYLES[status] : "bg-orange-100 text-orange-600"
+                      }`}>
+                        {registered ? applicationStatusLabel(status) : "Aguardando confirmação"}
+                      </span>
+                      <span className="flex-none text-[9px] font-semibold text-primary">Ver detalhes →</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -572,6 +744,43 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* ── NÍVEL 2: Detalhes da vaga ────────────────── */}
+      {view === "vaga" && selectedJob && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3">
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-3 py-3 border-b border-border bg-muted/20">
+              <p className="text-sm font-semibold leading-5">{selectedJob.title}</p>
+              <div className="flex items-center gap-1 mt-1 text-[11px] text-muted-foreground">
+                <MapPin className="w-3 h-3 flex-none" />
+                <span>{selectedJob.location}</span>
+              </div>
+            </div>
+            <div className="px-3 py-3">
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div>
+                  <p className="text-muted-foreground">Área</p>
+                  <p className="font-semibold mt-0.5">{selectedJob.area ?? "Administrativo"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Modalidade</p>
+                  <p className="font-semibold mt-0.5">{selectedJob.modality ?? "A combinar"}</p>
+                </div>
+              </div>
+              <p className="text-[11px] leading-4 text-muted-foreground mt-3">
+                {selectedJob.description ?? "Consulte a descrição completa e os requisitos diretamente na plataforma da cooperativa."}
+              </p>
+              <button
+                type="button"
+                onClick={() => window.open(selectedJob.atsHref ?? "/ats-vaga", "_blank", "noopener,noreferrer")}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Abrir vaga na ATS <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -606,29 +815,85 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
       {view === "candidatura" && (
         <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
           <div className="rounded-xl border border-border overflow-hidden">
-            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</p>
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                !isRegistered ? "bg-orange-100 text-orange-600" : isReactivation ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600"
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Controle da candidatura</p>
+              <span className={`mt-1.5 inline-flex text-[9px] leading-3 font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                selectedIsRegistered ? APPLICATION_STATUS_STYLES[selectedStatus] : "bg-orange-100 text-orange-600"
               }`}>
-                {!isRegistered ? "Aguardando confirmação" : isReactivation ? "Em análise" : "Em triagem"}
+                {selectedIsRegistered ? applicationStatusLabel(selectedStatus) : "Aguardando confirmação"}
               </span>
             </div>
-            <div className="px-3 py-3 space-y-1">
-              <p className="text-xs font-semibold">Gerente Adm. Financeiro</p>
-              <p className="text-[11px] text-muted-foreground">Sicoob Dom Eliseu · Dom Eliseu / PA</p>
-              <p className="text-[10px] text-muted-foreground/60">{isRegistered ? "Candidatura registrada · 21 jun 2026" : "Saiu para a plataforma da cooperativa"}</p>
+            <div className="px-3 py-3">
+              <p className="text-xs font-semibold">{selectedApplication.title}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {selectedApplication.cooperative} · {selectedApplication.location}
+              </p>
+              <p className="text-[10px] text-muted-foreground/60 mt-1">
+                {selectedIsRegistered
+                  ? `Candidatura registrada · ${selectedApplication.date}`
+                  : "Aguardando sua confirmação após sair para a ATS"}
+              </p>
+
+              <label htmlFor={`application-status-${selectedApplication.id}`} className="block text-[10px] font-semibold text-muted-foreground mt-3 mb-1.5">
+                Status informado por você
+              </label>
+              <div className="relative">
+                <select
+                  id={`application-status-${selectedApplication.id}`}
+                  value={selectedStatus}
+                  disabled={!selectedIsRegistered}
+                  onChange={(event) => updateApplicationStatus(selectedApplication.id, event.target.value as ApplicationStatus)}
+                  className="w-full h-8 appearance-none rounded-lg border border-border bg-background pl-2.5 pr-7 text-[11px] font-medium outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {APPLICATION_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 w-3.5 h-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+              <p className="text-[10px] leading-4 text-muted-foreground mt-2">
+                Como não há integração com a ATS, atualize este status sempre que houver uma mudança no processo.
+              </p>
             </div>
           </div>
+
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Detalhes da vaga</p>
+            </div>
+            <div className="px-3 py-3">
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div>
+                  <p className="text-muted-foreground">Área</p>
+                  <p className="font-semibold mt-0.5">{selectedApplication.area}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Modalidade</p>
+                  <p className="font-semibold mt-0.5">{selectedApplication.modality}</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-4 mt-3">
+                {selectedApplication.description}
+              </p>
+              <button
+                type="button"
+                onClick={() => window.open(selectedApplication.atsHref, "_blank", "noopener,noreferrer")}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Abrir vaga na ATS <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Match Card</p>
-              <span className="text-[10px] font-bold text-primary">87% match</span>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">EmpreCard</p>
+              <span className="text-[10px] font-bold text-primary">{selectedApplication.match}</span>
             </div>
             <button type="button" onClick={() => setView("matchcard")} className="w-full px-3 py-3 hover:bg-muted/30 transition-colors text-left">
-              <p className="text-xs font-semibold leading-4">Profissional de tecnologia, produto e dados</p>
-              <p className="text-[10px] text-muted-foreground leading-4 mt-0.5">Designer de Produto · UX, automação e transformação digital</p>
-              <p className="text-[10px] text-primary font-medium mt-2">Ver Match Card completo →</p>
+              <p className="text-xs font-semibold leading-4">{selectedApplication.empreCardTitle}</p>
+              <p className="text-[10px] text-muted-foreground leading-4 mt-0.5">{selectedApplication.empreCardDescription}</p>
+              <p className="text-[10px] text-primary font-medium mt-2">Ver EmpreCard completo →</p>
             </button>
           </div>
         </div>
@@ -641,13 +906,13 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
             <div className="px-3 py-2 border-b border-primary/20 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-primary flex-none" />
-                <p className="text-[10px] font-bold uppercase tracking-wide text-primary/70">Match Card</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-primary/70">EmpreCard</p>
               </div>
-              <span className="text-[10px] font-bold text-primary">87% match</span>
+              <span className="text-[10px] font-bold text-primary">{selectedApplication.match}</span>
             </div>
             <div className="px-3 py-3">
-              <p className="text-xs font-semibold">Gerente Administrativo Financeiro</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Sicoob Dom Eliseu · Dom Eliseu / PA</p>
+              <p className="text-xs font-semibold">{selectedApplication.title}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{selectedApplication.cooperative} · {selectedApplication.location}</p>
             </div>
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
@@ -655,12 +920,7 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
               <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Adaptações ao EmpreCard base</p>
             </div>
             <div className="px-3 py-3 space-y-1.5">
-              {[
-                "Skills destacadas: Gestão financeira, Análise de dados, Automação",
-                "Subtítulo adaptado para cooperativa de crédito",
-                "Essência reframada com foco em gestão estratégica",
-                "Experiências ordenadas por relevância financeira",
-              ].map((item) => (
+              {selectedApplication.empreCardAdaptations.map((item) => (
                 <div key={item} className="flex items-start gap-1.5">
                   <span className="text-muted-foreground text-[10px] flex-none mt-px">·</span>
                   <p className="text-[11px] text-muted-foreground leading-4">{item}</p>
@@ -671,7 +931,7 @@ function ContextualPanel({ count, progress, coursePreset }: { count: number; pro
           <div className="flex flex-col gap-2">
             <button type="button" onClick={() => generateEmpreMatchPdf()} className="w-full flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors">
               <Download className="w-3.5 h-3.5" />
-              Baixar Match Card
+              Baixar EmpreCard
             </button>
             <Link href="/emprecards/1" className="w-full flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors">
               Ver página completa
@@ -872,21 +1132,16 @@ function VagasPanel({ onClose }: { onClose?: () => void }) {
 }
 
 function CursosPanel({ coursePreset, onClose }: { coursePreset: CoursePreset | null; onClose?: () => void }) {
-  const c2done = coursePreset === "done";
-  const c2progress = coursePreset === "progress";
+  const courseDone = coursePreset === "done";
+  const courseProgress = coursePreset === "progress";
+  const courseOpen = coursePreset === "open";
 
   const courses = [
     {
-      label: "Cooperativismo - Primeiras Lições",
+      label: REQUIRED_COURSE,
       hours: "4H",
-      status: "done" as const,
-      desc: "Curso introdutório ao modelo cooperativo — obrigatório para todas as vagas do CapacitaCOOP.",
-    },
-    {
-      label: "Gestão Estratégica de Finanças em Cooperativas",
-      hours: "13H",
-      status: c2done ? "done" as const : c2progress ? "progress" as const : "idle" as const,
-      desc: "Cobre planejamento financeiro, análise de resultados e gestão orçamentária no contexto cooperativo.",
+      status: courseDone ? "done" as const : courseOpen || courseProgress ? "progress" as const : "idle" as const,
+      desc: "Curso introdutório ao modelo cooperativo e único requisito para acessar as vagas do EmpregaCOOP.",
     },
   ];
 
@@ -1152,7 +1407,7 @@ function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => 
                 className={`h-7 px-3 rounded-full text-xs font-medium transition-all ${empreCardTab === tab ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
               >
                 {tab === "base" ? "EmpreCard" : (
-                  <span className="flex items-center gap-1.5">Match Cards <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px] font-bold">1</span></span>
+                  <span className="flex items-center gap-1.5">EmpreCards <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px] font-bold">1</span></span>
                 )}
               </button>
             ))}
@@ -1216,7 +1471,7 @@ function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => 
                   <div className="px-4 py-3 border-b border-border flex items-start justify-between gap-2"
                     style={{ background: "linear-gradient(135deg,rgba(109,0,112,.04) 0%,transparent 70%)" }}>
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Match Card</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">EmpreCard</p>
                       <p className="text-sm font-semibold leading-5 mt-0.5">Gerente Administrativo Financeiro</p>
                       <p className="text-xs text-muted-foreground mt-0.5">Sicoob Dom Eliseu · Dom Eliseu, PA</p>
                     </div>
@@ -1237,7 +1492,7 @@ function ProfilePanel({ onClose, initialView = "curriculo" }: { onClose?: () => 
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground text-center pt-1">
-                  Um Match Card é criado a partir do seu EmpreCard para cada vaga que você se candidata.
+                  Um EmpreCard é criado para cada vaga à qual você se candidata.
                 </p>
               </div>
             )}
@@ -1717,12 +1972,12 @@ const JOBS = [
 ] as const;
 
 function OpportunitiesCard() {
-  const [applied, setApplied] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
-  function handleApply(jobTitle: string) {
-    setApplied(jobTitle);
-    localStorage.setItem("proto_stage", "17");
-    window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 17 } }));
+  function handleViewJob(jobTitle: string) {
+    setSelected(jobTitle);
+    localStorage.setItem("proto_stage", "19");
+    window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 19 } }));
   }
 
   return (
@@ -1738,7 +1993,7 @@ function OpportunitiesCard() {
       </div>
       <div className="divide-y divide-border/60">
         {JOBS.map((job) => {
-          const isApplied = applied === job.title;
+          const isSelected = selected === job.title;
           return (
             <div key={job.title} className="flex items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -1750,19 +2005,19 @@ function OpportunitiesCard() {
               </div>
               <button
                 type="button"
-                onClick={() => handleApply(job.title)}
-                disabled={applied !== null}
+                onClick={() => handleViewJob(job.title)}
+                disabled={selected !== null}
                 className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
-                  isApplied
+                  isSelected
                     ? "border border-primary/30 bg-primary/8 text-primary"
-                    : applied !== null
+                    : selected !== null
                     ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
                     : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
                 }`}
               >
-                {isApplied
-                  ? <><RefreshCw className="w-3 h-3" /><span>Em preparação</span></>
-                  : <><span>Candidatar-se</span><ArrowRight className="w-3 h-3" /></>
+                {isSelected
+                  ? <><Check className="w-3 h-3" /><span>Aberta</span></>
+                  : <><span>Ver vaga</span><ArrowRight className="w-3 h-3" /></>
                 }
               </button>
             </div>
@@ -1773,258 +2028,224 @@ function OpportunitiesCard() {
   );
 }
 
-function PrereqCard() {
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [courseStatus, setCourseStatus] = useState<Record<string, CourseStatus>>(
-    () => statusFromPreset(null)
+function RequiredCourseCard() {
+  const [courseStatus, setCourseStatus] = useState<CourseStatus>(
+    () => statusFromPreset(null)[REQUIRED_COURSE]
   );
-  function handleDownload() {
-    generateEmpreMatchPdf();
-  }
-
-  function handleWizardComplete() {
-    setWizardOpen(false);
-    const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
-    if (cur <= 17) {
-      localStorage.setItem("proto_stage", "18");
-      localStorage.setItem("proto_mode", "animated");
-      window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 18, mode: "animated" } }));
-    }
-    window.open("/ats-vaga", "_blank", "noopener,noreferrer");
-  }
 
   useEffect(() => {
     function readPreset() {
-      setCourseStatus(statusFromPreset(
-        localStorage.getItem("proto_courses") as CoursePreset | null
-      ));
+      const preset = localStorage.getItem("proto_courses") as CoursePreset | null;
+      setCourseStatus(statusFromPreset(preset)[REQUIRED_COURSE]);
     }
     readPreset();
     window.addEventListener("proto-update", readPreset);
     return () => window.removeEventListener("proto-update", readPreset);
   }, []);
 
-  function advanceCourse(label: string) {
-    setCourseStatus(prev => {
-      const cur = prev[label] ?? "idle";
-      const next: CourseStatus = cur === "idle" ? "progress" : "done";
-      const newStatus = { ...prev, [label]: next };
-      if (label === C2) {
-        const preset: CoursePreset = next === "done" ? "done" : "progress";
-        localStorage.setItem("proto_courses", preset);
-        if (next === "done") {
-          const currentStage = parseInt(localStorage.getItem("proto_stage") ?? "0");
-          if (currentStage < 18) {
-            // Avança o fluxo: continua a animação a partir do estágio seguinte
-            localStorage.setItem("proto_stage", "18");
-            localStorage.setItem("proto_mode", "animated");
-            window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 18, mode: "animated" } }));
-          } else {
-            // Já passou desta etapa — só atualiza o preset sem reiniciar
-            window.dispatchEvent(new CustomEvent("proto-courses-update", { detail: {} }));
-          }
-        } else {
-          // Curso em progresso — só atualiza o preset
-          window.dispatchEvent(new CustomEvent("proto-courses-update", { detail: {} }));
-        }
-      }
-      return newStatus;
-    });
+  function handleCourseAction() {
+    window.open("https://capacita.coop.br/cursos", "_blank", "noopener,noreferrer");
   }
 
-  const coursesData = [
-    {
-      num: "✓",
-      label: C1,
-      hours: "4H",
-      desc: "Curso introdutório ao modelo cooperativo — obrigatório para todas as vagas do CapacitaCOOP.",
-      topics: ["O que é uma cooperativa", "Princípios do cooperativismo", "Cooperativismo no Brasil"],
-    },
-    {
-      num: "1",
-      label: C2,
-      hours: "13H",
-      desc: "Cobre planejamento financeiro, análise de resultados e gestão orçamentária no contexto cooperativo.",
-      topics: ["Demonstrações financeiras", "Fluxo de caixa", "Indicadores de desempenho", "Sobras e fundos"],
-    },
-  ];
-  const courses = coursesData.map(c => ({ ...c, status: courseStatus[c.label] ?? "idle" }));
-  const allDone = courses.every(c => c.status === "done");
-  const pendingCount = courses.filter(c => c.status !== "done").length;
+  const isDone = courseStatus === "done";
+  const isProgress = courseStatus === "progress";
+  const isOpen = courseStatus === "open";
+  const isEnrolled = isOpen || isProgress;
+  const courseProgress = isProgress ? 60 : 0;
+
+  return (
+    <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
+        <span className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
+          <GraduationCap className="w-4 h-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Curso obrigatório</p>
+          <p className="text-sm font-medium">Libera o acesso às vagas</p>
+        </div>
+      </div>
+
+      <div className="px-4 py-4">
+        <div className="flex items-start gap-3">
+          <span className={`w-9 h-9 flex items-center justify-center rounded-xl flex-none ${
+            isDone ? "bg-success-soft text-success" : isEnrolled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+          }`}>
+            {isDone ? <CheckCircle className="w-4 h-4" /> : isEnrolled ? <RefreshCw className="w-4 h-4" /> : <GraduationCap className="w-4 h-4" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold leading-5">{REQUIRED_COURSE}</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="w-3 h-3" />4H
+              </span>
+              <span className={`inline-flex items-center h-4 px-1.5 rounded-full text-[10px] font-semibold ${
+                isDone ? "bg-success-soft text-success" : isEnrolled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              }`}>
+                {isDone ? "Concluído" : isEnrolled ? "Em andamento" : "Disponível"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+          Uma introdução ao modelo cooperativo, seus princípios e sua atuação no Brasil. Este é o único curso necessário para desbloquear as vagas.
+        </p>
+        <div className="flex flex-wrap gap-1 mt-3">
+          {["O que é uma cooperativa", "Princípios do cooperativismo", "Cooperativismo no Brasil"].map((topic) => (
+            <span key={topic} className="inline-flex items-center h-5 px-2 rounded-full bg-muted text-[11px] text-muted-foreground">
+              {topic}
+            </span>
+          ))}
+        </div>
+
+        {isEnrolled && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[11px] mb-1.5">
+              <span className="font-medium text-primary">Seu progresso</span>
+              <span className="text-muted-foreground">{courseProgress}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500"
+                style={{ width: `${courseProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={`border-t px-4 py-3.5 flex justify-end ${
+        isDone ? "border-success/25 bg-success-soft/50" : "border-border"
+      }`}>
+        <button
+          type="button"
+          onClick={handleCourseAction}
+          className={`flex-none inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-semibold transition-colors ${
+            isDone
+              ? "border-success/30 bg-card text-success hover:bg-success-soft"
+              : "border-primary/30 bg-primary/8 text-primary hover:bg-primary/12"
+          }`}
+        >
+          {isDone ? "Rever curso" : isEnrolled ? "Retomar curso" : "Realizar curso"} <ArrowRight className="w-3 h-3" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function EmpreCardApplicationPanel({
+  onDownload,
+  onApply,
+}: {
+  onDownload: () => void;
+  onApply: () => void;
+}) {
+  return (
+    <div
+      className="border-t border-primary/15 px-4 py-4"
+      style={{ background: "linear-gradient(135deg,rgba(109,0,112,.07) 0%,rgba(109,0,112,.02) 68%,transparent 100%)" }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="w-6 h-6 flex items-center justify-center rounded-md bg-primary/10 text-primary flex-none">
+          <Sparkles className="w-3.5 h-3.5" />
+        </span>
+        <p className="text-xs font-semibold text-primary/80">EmpreCard personalizado para esta vaga</p>
+      </div>
+
+      <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+        O EmpreCard adapta seu perfil à oportunidade e destaca as experiências e competências mais relevantes para fortalecer sua candidatura. Baixe o EmpreCard e candidate-se à vaga!
+      </p>
+
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={onDownload}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-primary/25 bg-card text-primary text-xs font-semibold hover:bg-primary/5 transition-colors"
+        >
+          <Download className="w-3 h-3" />Baixar EmpreCard
+        </button>
+        <button
+          type="button"
+          onClick={onApply}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary/90 transition-colors"
+        >
+          Candidatar-se <ArrowRight className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PrimaryJobCard() {
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  function handleWizardComplete() {
+    setWizardOpen(false);
+    const currentStage = parseInt(localStorage.getItem("proto_stage") ?? "0");
+    if (currentStage < 20) {
+      localStorage.setItem("proto_stage", "20");
+      window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 20 } }));
+    }
+    window.open("/ats-vaga", "_blank", "noopener,noreferrer");
+  }
 
   return (
     <>
-    <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
-        <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
-          <GraduationCap className="w-3.5 h-3.5" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Pré-requisitos</p>
-          <p className="text-sm font-medium truncate">Gerente Administrativo Financeiro</p>
-        </div>
-      </div>
-
-      <div className="p-3 space-y-2">
-        {courses.map((c) => {
-          const isOpen = expanded === c.label;
-          const isDone = c.status === "done";
-          const isProgress = c.status === "progress";
-          return (
-            <div
-              key={c.label}
-              className={`rounded-xl border bg-card overflow-hidden ${
-                isDone ? "border-success/35" : isProgress ? "border-primary/30 shadow-sm" : "border-border"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => setExpanded(isOpen ? null : c.label)}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-muted/30 transition-colors"
-              >
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-none ${
-                  isDone ? "bg-success-soft text-success" : isProgress ? "bg-primary/12 text-primary" : "bg-muted text-muted-foreground"
-                }`}>
-                  {isDone ? <CheckCircle className="w-3 h-3" /> : isProgress ? <RefreshCw className="w-3 h-3" /> : c.num}
-                </span>
-
-                <div className="flex-1 min-w-0">
-                  <strong className="block text-sm font-semibold leading-5 truncate">{c.label}</strong>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3" />{c.hours}
-                    </span>
-                    {isDone && (
-                      <span className="inline-flex items-center gap-0.5 h-[14px] px-1 rounded-full bg-success-soft text-success text-[10px] font-semibold">
-                        <Check className="w-2 h-2" />Concluído
-                      </span>
-                    )}
-                    {isProgress && (
-                      <span className="inline-flex items-center gap-0.5 h-[14px] px-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
-                        Em progresso
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {isDone ? (
-                  <span
-                    role="button"
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex-none h-7 px-2.5 rounded-lg border border-success/40 bg-success-soft text-success text-xs font-semibold hover:bg-success/10 transition-colors flex items-center gap-1"
-                  >
-                    Rever <ArrowRight className="w-3 h-3" />
-                  </span>
-                ) : isProgress ? (
-                  <span
-                    role="button"
-                    onClick={(e) => { e.stopPropagation(); advanceCourse(c.label); }}
-                    className="flex-none h-7 px-2.5 rounded-lg border border-primary/30 bg-primary/8 text-primary text-xs font-semibold hover:bg-primary/12 transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    Continuar <ArrowRight className="w-3 h-3" />
-                  </span>
-                ) : (
-                  <span
-                    role="button"
-                    onClick={(e) => { e.stopPropagation(); advanceCourse(c.label); }}
-                    className="flex-none h-7 px-2.5 rounded-lg border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/8 transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    Começar <ArrowRight className="w-3 h-3" />
-                  </span>
-                )}
-              </button>
-
-              {isOpen && (
-                <div className="px-3 pb-3 border-t border-border/50">
-                  <p className="text-sm text-muted-foreground leading-relaxed mt-2.5 mb-2">{c.desc}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {c.topics.map((t) => (
-                      <span key={t} className="inline-flex items-center h-5 px-2 rounded-full bg-muted text-xs text-muted-foreground">{t}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {allDone ? (
-        <>
-          {/* EmpreMatch gerado para a vaga */}
-          <div className="border-t border-primary/15 px-4 py-3.5" style={{ background: "linear-gradient(135deg,rgba(109,0,112,.04) 0%,transparent 70%)" }}>
-            <div className="flex items-center gap-2 mb-2.5">
-              <span className="w-5 h-5 flex items-center justify-center rounded-md bg-primary/10 flex-none">
-                <Sparkles className="w-3 h-3 text-primary" />
-              </span>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-primary/50 flex-1">Match Card criado</p>
-              <span className="text-xs font-bold text-success">87% match</span>
-            </div>
-            <p className="text-xs font-semibold leading-5">Gerente Administrativo Financeiro</p>
-            <p className="text-[11px] text-muted-foreground mb-2">Sicoob Dom Eliseu · Dom Eliseu, PA</p>
-            <p className="text-[11px] font-medium text-muted-foreground mb-1">Adaptações ao EmpreCard base:</p>
-            <ul className="text-[11px] text-muted-foreground space-y-0.5 leading-4">
-              <li>· Skills destacadas: Gestão financeira, Análise de dados, Automação</li>
-              <li>· Subtítulo adaptado para cooperativa de crédito</li>
-              <li>· Essência reframeada com foco em gestão estratégica</li>
-              <li>· Experiências ordenadas por relevância financeira</li>
-            </ul>
-          </div>
-          {/* Ações */}
-          <div className="border-t border-success/25 bg-success-soft px-4 py-3.5">
-            <div className="flex items-center gap-2 text-success text-sm font-semibold">
-              <CheckCircle className="w-4 h-4 flex-none" />
-              Pré-requisitos concluídos — vaga liberada!
-            </div>
-            <p className="mt-1 ml-6 text-xs text-success/70 leading-relaxed">
-              Seu Match Card está pronto. Candidate-se pela plataforma da cooperativa.
-            </p>
-            <div className="ml-6 mt-3 flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-card text-muted-foreground text-xs font-medium hover:bg-muted transition-colors"
-              >
-                <Download className="w-3 h-3" />Baixar Match Card
-              </button>
-              <button
-                type="button"
-                onClick={() => setWizardOpen(true)}
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-success/40 bg-card text-success text-xs font-semibold hover:bg-success/8 transition-colors"
-              >
-                Candidatar-se <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="border-t border-border px-4 py-3.5">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
-            <Lock className="w-3.5 h-3.5 flex-none" />
-            {pendingCount} curso{pendingCount !== 1 ? "s" : ""} pendente{pendingCount !== 1 ? "s" : ""} para liberar a candidatura
-          </div>
-          <p className="mt-1 ml-[22px] text-xs text-muted-foreground/60 leading-relaxed">
-            Conclua todos os cursos acima para criar seu Match Card e candidatar-se.
-          </p>
-          <span className="ml-[22px] mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border text-muted-foreground/40 text-xs font-semibold cursor-not-allowed select-none">
-            Candidatar-se <ArrowRight className="w-3 h-3" />
+      <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
+          <span className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
+            <Briefcase className="w-4 h-4" />
           </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Detalhes da vaga</p>
+            <p className="text-sm font-medium truncate">Gerente Administrativo Financeiro</p>
+          </div>
+          <span className="text-xs font-bold text-success">87% match</span>
         </div>
-      )}
-    </article>
-    <ExternalApplicationWizard
-      open={wizardOpen}
-      vagaTitulo="Gerente Administrativo Financeiro"
-      cooperativa="Sicoob Dom Eliseu"
-      onClose={() => setWizardOpen(false)}
-      onComplete={handleWizardComplete}
-    />
+
+        <div className="px-4 py-4">
+          <h3 className="text-sm font-semibold">Gerente Administrativo Financeiro</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Sicoob Dom Eliseu · Dom Eliseu, PA</p>
+          <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
+            <div>
+              <p className="text-muted-foreground">Área</p>
+              <p className="font-medium mt-0.5">Administrativo e Financeiro</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Modalidade</p>
+              <p className="font-medium mt-0.5">Presencial</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-3">
+            Liderar o planejamento financeiro, acompanhar indicadores e apoiar decisões estratégicas da cooperativa.
+          </p>
+        </div>
+
+        <EmpreCardApplicationPanel
+          onDownload={() => generateEmpreMatchPdf()}
+          onApply={() => setWizardOpen(true)}
+        />
+      </article>
+      <ExternalApplicationWizard
+        open={wizardOpen}
+        vagaTitulo="Gerente Administrativo Financeiro"
+        cooperativa="Sicoob Dom Eliseu"
+        onClose={() => setWizardOpen(false)}
+        onComplete={handleWizardComplete}
+      />
     </>
   );
 }
 
-function ApplicationStatusCard() {
+function ApplicationStatusCard({
+  title = "Gerente Administrativo Financeiro",
+  cooperative = "Sicoob Dom Eliseu",
+  date = "21 jun. 2026",
+}: {
+  title?: string;
+  cooperative?: string;
+  date?: string;
+}) {
   return (
     <article className="rounded-2xl border border-success/30 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-success/20 bg-success-soft/60">
@@ -2033,18 +2254,18 @@ function ApplicationStatusCard() {
         </span>
         <div className="min-w-0">
           <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Candidatura registrada</p>
-          <p className="text-sm font-medium truncate">Gerente Administrativo Financeiro</p>
+          <p className="text-sm font-medium truncate">{title}</p>
         </div>
       </div>
       <div className="px-4 py-4 space-y-3">
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div>
             <p className="text-muted-foreground mb-0.5">Cooperativa</p>
-            <p className="font-semibold">Sicoob Dom Eliseu</p>
+            <p className="font-semibold">{cooperative}</p>
           </div>
           <div>
             <p className="text-muted-foreground mb-0.5">Data</p>
-            <p className="font-medium">21 jun. 2026</p>
+            <p className="font-medium">{date}</p>
           </div>
         </div>
         <p className="text-xs text-muted-foreground leading-4">
@@ -2055,57 +2276,22 @@ function ApplicationStatusCard() {
   );
 }
 
-function ProfileReactivationCard() {
-  const actions = [
-    { Icon: Pencil, label: "Atualizar EmpreCard", sub: "Adicionar novos projetos e habilidades" },
-    { Icon: GraduationCap, label: "Explorar novos cursos", sub: "2 cursos novos disponíveis no CapacitaCOOP" },
-    { Icon: Briefcase, label: "Ver novas vagas", sub: "3 vagas ainda mais aderentes encontradas" },
-  ] as const;
-
-  return (
-    <article className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm mt-3 max-w-[min(420px,100%)]">
-      <div className="px-4 py-3 border-b border-border bg-brand-soft/30">
-        <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Enquanto você aguarda</p>
-        <p className="text-sm font-medium">Fortaleça seu perfil agora</p>
-      </div>
-      <div className="p-3 space-y-2">
-        {actions.map(({ Icon, label, sub }) => (
-          <button
-            key={label}
-            type="button"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border hover:bg-muted/50 transition-colors text-left"
-          >
-            <span className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary/10 text-primary flex-none">
-              <Icon className="w-3.5 h-3.5" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold leading-5">{label}</p>
-              <p className="text-xs text-muted-foreground leading-4">{sub}</p>
-            </div>
-            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground flex-none" />
-          </button>
-        ))}
-      </div>
-    </article>
-  );
-}
-
 const JOBS_REACTIVATION = [
-  { title: "Coordenador de Produtos Digitais", city: "Brasília", state: "DF", prereqsOk: true, prereqLabel: "Pré-requisitos cumpridos" },
-  { title: "Analista de Transformação Digital", city: "Florianópolis", state: "SC", prereqsOk: false, prereqLabel: "1 curso novo · Design de Sistemas Cooperativos (8H)" },
-  { title: "Gerente de Inovação e Tecnologia", city: "Porto Alegre", state: "RS", prereqsOk: false, prereqLabel: "1 curso novo · Governança Cooperativa (6H)" },
+  { title: "Coordenador de Produtos Digitais", city: "Brasília", state: "DF" },
+  { title: "Analista de Transformação Digital", city: "Florianópolis", state: "SC" },
+  { title: "Gerente de Inovação e Tecnologia", city: "Porto Alegre", state: "RS" },
 ] as const;
 
 function ReactivationOpportunitiesCard() {
-  const [applied, setApplied] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
-  function handleApply(jobTitle: string) {
-    setApplied(jobTitle);
+  function handleViewJob(jobTitle: string) {
+    setSelected(jobTitle);
     const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
     if (cur < 24) {
       localStorage.setItem("proto_stage", "24");
-      localStorage.setItem("proto_mode", "animated");
-      window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 24, mode: "animated" } }));
+      localStorage.setItem("proto_mode", "manual");
+      window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 24, mode: "manual" } }));
     }
   }
 
@@ -2122,7 +2308,7 @@ function ReactivationOpportunitiesCard() {
       </div>
       <div className="divide-y divide-border/60">
         {JOBS_REACTIVATION.map((job) => {
-          const isApplied = applied === job.title;
+          const isSelected = selected === job.title;
           return (
             <div key={job.title} className="flex items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -2131,40 +2317,24 @@ function ReactivationOpportunitiesCard() {
                   <MapPin className="w-3 h-3 flex-none" />
                   <span>{job.city} / {job.state}</span>
                 </div>
-                <p className={`flex items-center gap-1 mt-1 text-[11px] font-medium ${job.prereqsOk ? "text-success" : "text-muted-foreground"}`}>
-                  {job.prereqsOk
-                    ? <><CheckCircle className="w-3 h-3 flex-none" />{job.prereqLabel}</>
-                    : <><GraduationCap className="w-3 h-3 flex-none" />{job.prereqLabel}</>
-                  }
-                </p>
               </div>
-              {job.prereqsOk ? (
-                <button
-                  type="button"
-                  onClick={() => handleApply(job.title)}
-                  disabled={applied !== null}
-                  className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
-                    isApplied
-                      ? "border border-primary/30 bg-primary/8 text-primary"
-                      : applied !== null
-                      ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
-                      : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
-                  }`}
-                >
-                  {isApplied
-                    ? <><Check className="w-3 h-3" /><span>Pronta</span></>
-                    : <><span>Candidatar-se</span><ArrowRight className="w-3 h-3" /></>
-                  }
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={applied !== null}
-                  className="flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border border-border text-muted-foreground text-xs font-semibold hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <span>Fazer curso</span><ArrowRight className="w-3 h-3" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => handleViewJob(job.title)}
+                disabled={selected !== null}
+                className={`flex-none inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors ${
+                  isSelected
+                    ? "border border-primary/30 bg-primary/8 text-primary"
+                    : selected !== null
+                    ? "border border-border text-muted-foreground opacity-40 cursor-not-allowed"
+                    : "border border-primary/30 text-primary hover:bg-primary/8 cursor-pointer"
+                }`}
+              >
+                {isSelected
+                  ? <><Check className="w-3 h-3" /><span>Aberta</span></>
+                  : <><span>Ver vaga</span><ArrowRight className="w-3 h-3" /></>
+                }
+              </button>
             </div>
           );
         })}
@@ -2173,28 +2343,19 @@ function ReactivationOpportunitiesCard() {
   );
 }
 
-/* ── 2ª candidatura: vaga liberada com pré-requisitos aproveitados ─────── */
+/* ── 2ª candidatura: nova vaga com EmpreCard personalizado ─────────────── */
 
 const VAGA_LIBERADA = {
   titulo: "Coordenador de Produtos Digitais",
   cooperativa: "Sicoob Planalto Central",
   local: "Brasília, DF",
   match: "91% match",
-  cursosAproveitados: [
-    { nome: "Cooperativismo - Primeiras Lições", horas: "4H" },
-    { nome: "Gestão Estratégica de Finanças em Cooperativas", horas: "13H" },
-  ],
-  adaptacoes: [
-    "Skills destacadas: Produto digital, Estratégia digital, Automação",
-    "Subtítulo adaptado para produto em cooperativa de crédito",
-    "Experiências ordenadas por relevância em produto",
-  ],
   pdf: {
     titulo: "Coordenador de Produtos Digitais",
     cooperativa: "Sicoob Planalto Central",
     subtitulo: "Produto Digital · Tecnologia e Dados",
     skillsDestaque: ["Produto digital", "Estratégia digital", "Automação com IA"],
-    filename: "MatchCard_Bolivar_Alencastro_Coordenador_Produtos_Digitais.pdf",
+    filename: "EmpreCard_Bolivar_Alencastro_Coordenador_Produtos_Digitais.pdf",
     resumo:
       "Profissional com 8 experiências em produto digital, dados e automação com IA, unindo visão " +
       "estratégica e rigor analítico. Histórico de liderança em iniciativas multidisciplinares, " +
@@ -2204,107 +2365,56 @@ const VAGA_LIBERADA = {
 };
 
 function VagaLiberadaCard() {
-  const [wizardOpen, setWizardOpen] = useState(false);
-
   function handleDownload() {
     generateEmpreMatchPdf(VAGA_LIBERADA.pdf);
   }
 
-  function handleWizardComplete() {
-    setWizardOpen(false);
+  function handleApply() {
     window.open("/ats-vaga", "_blank", "noopener,noreferrer");
+    const cur = parseInt(localStorage.getItem("proto_stage") ?? "0");
+    if (cur < 25) {
+      localStorage.setItem("proto_stage", "25");
+      localStorage.setItem("proto_mode", "manual");
+      window.dispatchEvent(new CustomEvent("proto-update", { detail: { stage: 25, mode: "manual" } }));
+    }
   }
 
   return (
-    <>
     <article className="rounded-2xl border border-primary/15 bg-card overflow-hidden shadow-sm mt-4 max-w-[min(420px,100%)]">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/10 bg-primary/5">
         <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/12 text-primary flex-none">
-          <GraduationCap className="w-3.5 h-3.5" />
+          <Briefcase className="w-3.5 h-3.5" />
         </span>
-        <div className="min-w-0">
-          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Pré-requisitos</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Detalhes da vaga</p>
           <p className="text-sm font-medium truncate">{VAGA_LIBERADA.titulo}</p>
         </div>
+        <span className="text-xs font-bold text-success">{VAGA_LIBERADA.match}</span>
       </div>
 
-      <div className="p-3 space-y-2">
-        {VAGA_LIBERADA.cursosAproveitados.map((c) => (
-          <div key={c.nome} className="rounded-xl border border-success/35 bg-card overflow-hidden">
-            <div className="w-full flex items-center gap-2.5 px-3 py-2.5">
-              <span className="w-5 h-5 flex items-center justify-center rounded-full bg-success-soft text-success flex-none">
-                <CheckCircle className="w-3 h-3" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <strong className="block text-sm font-semibold leading-5 truncate">{c.nome}</strong>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />{c.horas}
-                  </span>
-                  <span className="inline-flex items-center gap-0.5 h-[14px] px-1 rounded-full bg-success-soft text-success text-[10px] font-semibold">
-                    <Check className="w-2 h-2" />Concluído · certificado
-                  </span>
-                </div>
-              </div>
-            </div>
+      <div className="px-4 py-4">
+        <p className="text-sm font-semibold leading-5">{VAGA_LIBERADA.titulo}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{VAGA_LIBERADA.cooperativa} · {VAGA_LIBERADA.local}</p>
+        <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
+          <div>
+            <p className="text-muted-foreground">Área</p>
+            <p className="font-medium mt-0.5">Produtos Digitais</p>
           </div>
-        ))}
-      </div>
-
-      {/* Match Card gerado para a vaga */}
-      <div className="border-t border-primary/15 px-4 py-3.5" style={{ background: "linear-gradient(135deg,rgba(109,0,112,.04) 0%,transparent 70%)" }}>
-        <div className="flex items-center gap-2 mb-2.5">
-          <span className="w-5 h-5 flex items-center justify-center rounded-md bg-primary/10 flex-none">
-            <Sparkles className="w-3 h-3 text-primary" />
-          </span>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-primary/50 flex-1">Match Card criado</p>
-          <span className="text-xs font-bold text-success">{VAGA_LIBERADA.match}</span>
+          <div>
+            <p className="text-muted-foreground">Modalidade</p>
+            <p className="font-medium mt-0.5">Híbrido</p>
+          </div>
         </div>
-        <p className="text-xs font-semibold leading-5">{VAGA_LIBERADA.titulo}</p>
-        <p className="text-[11px] text-muted-foreground mb-2">{VAGA_LIBERADA.cooperativa} · {VAGA_LIBERADA.local}</p>
-        <p className="text-[11px] font-medium text-muted-foreground mb-1">Adaptações ao EmpreCard base:</p>
-        <ul className="text-[11px] text-muted-foreground space-y-0.5 leading-4">
-          {VAGA_LIBERADA.adaptacoes.map((a) => <li key={a}>· {a}</li>)}
-        </ul>
-      </div>
-
-      {/* Ações */}
-      <div className="border-t border-success/25 bg-success-soft px-4 py-3.5">
-        <div className="flex items-center gap-2 text-success text-sm font-semibold">
-          <CheckCircle className="w-4 h-4 flex-none" />
-          Você já cumpre os pré-requisitos — vaga liberada!
-        </div>
-        <p className="mt-1 ml-6 text-xs text-success/70 leading-relaxed">
-          Seus certificados do CapacitaCOOP valem para esta vaga. Candidate-se pela plataforma da cooperativa.
+        <p className="text-xs text-muted-foreground leading-relaxed mt-3">
+          Coordenar a estratégia e a evolução de produtos digitais, conectando necessidades dos cooperados, tecnologia e resultados de negócio.
         </p>
-        <div className="ml-6 mt-3 flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-card text-muted-foreground text-xs font-medium hover:bg-muted transition-colors"
-          >
-            <Download className="w-3 h-3" />Baixar Match Card
-          </button>
-          <button
-            type="button"
-            onClick={() => setWizardOpen(true)}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-success/40 bg-card text-success text-xs font-semibold hover:bg-success/8 transition-colors"
-          >
-            Candidatar-se <ArrowRight className="w-3 h-3" />
-          </button>
-        </div>
       </div>
+
+      <EmpreCardApplicationPanel
+        onDownload={handleDownload}
+        onApply={handleApply}
+      />
     </article>
-    <ExternalApplicationWizard
-      open={wizardOpen}
-      vagaTitulo={VAGA_LIBERADA.titulo}
-      cooperativa={VAGA_LIBERADA.cooperativa}
-      variant="short"
-      onClose={() => setWizardOpen(false)}
-      onComplete={handleWizardComplete}
-      onDownload={handleDownload}
-    />
-    </>
   );
 }
 
@@ -2312,10 +2422,10 @@ function VagaLiberadaCard() {
 
 /* ── Proto constants ───────────────────────────────────────────────────── */
 
-// 'ai' or 'user' for each of the 24 messages
-const MSG_TYPES = ["ai","user","ai","ai","ai","ai","user","ai","user","ai","ai","user","ai","user","ai","user","ai","ai","user","ai","ai","user","ai","ai"] as const;
+// 'ai' or 'user' for each of the 27 messages
+const MSG_TYPES = ["ai","user","ai","ai","ai","ai","user","ai","user","ai","ai","user","ai","user","ai","ai","ai","ai","user","ai","ai","user","ai","ai","ai","user","ai"] as const;
 // ms to pause before revealing each message (for AI msgs: this precedes the typing indicator)
-const MSG_DELAYS = [0,1200,600,700,800,600,1200,600,1200,600,800,1200,600,1200,1000,1200,700,1400,1000,700,1600,1200,700,900];
+const MSG_DELAYS = [0,1200,600,700,800,600,1200,600,1200,600,800,1200,600,1200,1000,1200,700,1400,1000,700,1600,1200,700,900,700,1200,700];
 const TYPING_MS = 1100; // how long the typing indicator shows
 
 function TypingIndicator() {
@@ -2791,9 +2901,8 @@ export default function AssistentePage() {
                   <UserAvatar />
                 </article>
 
-                {/* ── ETAPA 4: CAPACITAÇÃO / VAGAS ─────────────── */}
+                {/* ── ETAPA 4: CURSO OBRIGATÓRIO ─────────────── */}
 
-                {/* AI: Oportunidades + vagas */}
                 <article className="flex items-start gap-3">
                   <AIAvatar />
                   <div className="min-w-0 flex-1">
@@ -2802,26 +2911,53 @@ export default function AssistentePage() {
                       <span>10:39</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Encontrei vagas compatíveis com seu perfil. Qual te interessa?</p>
+                      <p>Seu perfil está pronto. Antes de acessar as vagas, conclua o curso obrigatório de introdução ao cooperativismo.</p>
+                    </div>
+                    <RequiredCourseCard />
+                  </div>
+                </article>
+
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>10:40</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>O CapacitaCOOP confirmou a conclusão do seu curso obrigatório.</p>
+                    </div>
+                  </div>
+                </article>
+
+                {/* ── ETAPA 5: VAGAS DESBLOQUEADAS ───────────── */}
+
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>10:40</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>As vagas compatíveis com seu perfil foram desbloqueadas. Escolha uma para ver os detalhes.</p>
                     </div>
                     <OpportunitiesCard />
                   </div>
                 </article>
 
-                {/* User: escolhe vaga */}
                 <article className="flex items-start gap-3 justify-end">
                   <div className="min-w-0 flex-1 flex flex-col items-end">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground justify-end">
-                      <span>10:40</span>
+                      <span>10:41</span>
                     </div>
                     <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
-                      Quero saber mais sobre Gerente Administrativo Financeiro.
+                      Quero ver a vaga de Gerente Administrativo Financeiro.
                     </div>
                   </div>
                   <UserAvatar />
                 </article>
 
-                {/* AI: Cursos pré-requisito */}
                 <article className="flex items-start gap-3">
                   <AIAvatar />
                   <div className="min-w-0 flex-1">
@@ -2830,15 +2966,14 @@ export default function AssistentePage() {
                       <span>10:41</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Perfeito. Aqui estão os cursos pra você se preparar para essa família de vaga.</p>
+                      <p>Esta vaga combina com seu perfil. Veja os detalhes e use o EmpreCard preparado para fortalecer sua candidatura.</p>
                     </div>
-                    <PrereqCard />
+                    <PrimaryJobCard />
                   </div>
                 </article>
 
                 {/* ── ETAPA 6: PÓS-CANDIDATURA ─────────────── */}
 
-                {/* M18 — AI: Confirma que viu a candidatura */}
                 <article className="flex items-start gap-3">
                   <AIAvatar />
                   <div className="min-w-0 flex-1">
@@ -2847,12 +2982,11 @@ export default function AssistentePage() {
                       <span>10:43</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Vi que você selecionou a vaga de Gerente Administrativo Financeiro. Conseguiu concluir a inscrição na plataforma da cooperativa?</p>
+                      <p>Vi que você abriu a candidatura para Gerente Administrativo Financeiro. Conseguiu concluir a inscrição na plataforma da cooperativa?</p>
                     </div>
                   </div>
                 </article>
 
-                {/* M19 — User: Confirmação */}
                 <article className="flex items-start gap-3 justify-end">
                   <div className="min-w-0 flex-1 flex flex-col items-end">
                     <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground justify-end">
@@ -2865,7 +2999,6 @@ export default function AssistentePage() {
                   <UserAvatar />
                 </article>
 
-                {/* M20 — AI: Candidatura registrada */}
                 <article className="flex items-start gap-3">
                   <AIAvatar />
                   <div className="min-w-0 flex-1">
@@ -2874,15 +3007,14 @@ export default function AssistentePage() {
                       <span>10:44</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Ótimo! Registrei sua candidatura no EmpregaCOOP para manter o rastreio e atribuição de origem.</p>
+                      <p>Ótimo! Registrei sua candidatura no EmpregaCOOP para você acompanhar seu histórico.</p>
                     </div>
                     <ApplicationStatusCard />
                   </div>
                 </article>
 
-                {/* ── ETAPA 7: REATIVAÇÃO ────────────────────── */}
+                {/* ── ETAPA 7: RETORNO E NOVAS VAGAS ─────────── */}
 
-                {/* M22 — AI: Reativação */}
                 <article className="flex items-start gap-3">
                   <AIAvatar />
                   <div className="min-w-0 flex-1">
@@ -2891,42 +3023,13 @@ export default function AssistentePage() {
                       <span>Hoje · 09:15</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p className="mb-2">Oi, Bolivar! A cooperativa ainda está em triagem — é normal levar alguns dias.</p>
-                      <p>Enquanto isso, que tal usar esse tempo para fortalecer seu perfil e aumentar suas chances em outras vagas também?</p>
-                    </div>
-                    <ProfileReactivationCard />
-                  </div>
-                </article>
-
-                {/* M23 — User: Pede novas vagas */}
-                <article className="flex items-start gap-3 justify-end">
-                  <div className="min-w-0 flex-1 flex flex-col items-end">
-                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground justify-end">
-                      <span>09:17</span>
-                    </div>
-                    <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
-                      Pode mostrar outras vagas compatíveis com meu perfil enquanto aguardo?
-                    </div>
-                  </div>
-                  <UserAvatar />
-                </article>
-
-                {/* M24 — AI: Novas vagas */}
-                <article className="flex items-start gap-3">
-                  <AIAvatar />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
-                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
-                      <span>09:17</span>
-                    </div>
-                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Claro! Com seu perfil atualizado, encontrei novas vagas que combinam muito com você.</p>
+                      <p className="mb-2">Oi, Bolivar! Sua primeira candidatura ainda está em análise.</p>
+                      <p>Enquanto aguarda, encontrei novas vagas compatíveis com seu perfil. Escolha uma delas para ver os detalhes.</p>
                     </div>
                     <ReactivationOpportunitiesCard />
                   </div>
                 </article>
 
-                {/* M24 — AI: 2ª candidatura, vaga liberada com certificados aproveitados */}
                 <article className="flex items-start gap-3">
                   <AIAvatar />
                   <div className="min-w-0 flex-1">
@@ -2935,9 +3038,54 @@ export default function AssistentePage() {
                       <span>09:18</span>
                     </div>
                     <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
-                      <p>Boa escolha! Você já cumpre os pré-requisitos dessa vaga com os cursos que concluiu — criei seu Match Card na hora. Candidate-se pela plataforma da cooperativa e me avise quando finalizar.</p>
+                      <p>Boa escolha! Esta vaga combina com seu perfil e já preparei um EmpreCard específico para fortalecer sua candidatura.</p>
                     </div>
                     <VagaLiberadaCard />
+                  </div>
+                </article>
+
+                {/* ── ETAPA 8: CONFIRMAÇÃO DA 2ª CANDIDATURA ─── */}
+
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>09:20</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Vi que você abriu a candidatura para Coordenador de Produtos Digitais. Conseguiu concluir a inscrição na plataforma da cooperativa?</p>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="flex items-start gap-3 justify-end">
+                  <div className="min-w-0 flex-1 flex flex-col items-end">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground justify-end">
+                      <span>09:22</span>
+                    </div>
+                    <div className="inline-block max-w-[min(460px,100%)] rounded-2xl bg-[#efdff2] px-4 py-3 text-base leading-relaxed whitespace-pre-wrap">
+                      Sim, concluí a candidatura.
+                    </div>
+                  </div>
+                  <UserAvatar />
+                </article>
+
+                <article className="flex items-start gap-3">
+                  <AIAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 mb-1.5 text-xs text-muted-foreground">
+                      <strong className="text-sm font-semibold text-foreground">EmpregaCOOP IA</strong>
+                      <span>09:22</span>
+                    </div>
+                    <div className="inline-block max-w-[min(560px,100%)] rounded-2xl bg-muted px-4 py-3 text-base leading-relaxed">
+                      <p>Ótimo! Registrei esta nova candidatura no EmpregaCOOP para você acompanhar seu histórico.</p>
+                    </div>
+                    <ApplicationStatusCard
+                      title="Coordenador de Produtos Digitais"
+                      cooperative="Sicoob Planalto Central"
+                      date="26 jul. 2026"
+                    />
                   </div>
                 </article>
 

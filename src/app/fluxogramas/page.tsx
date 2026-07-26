@@ -46,12 +46,11 @@ flowchart TD
     end
 
     subgraph sg4["④ Capacitação"]
-        I{Pré-requisitos pendentes?}
-        J[CapacitaCOOP — Cursos e trilhas]
-        K([Capacitação concluída])
-        I -->|Sim| J
-        J --> K
-        I -->|Não| K
+        I[Card do curso obrigatório\nCooperativismo — Primeiras Lições]
+        J[Abrir curso\nno CapacitaCOOP]
+        J2[Curso em realização\nProgresso salvo]
+        K([Finalizar curso\nVagas desbloqueadas])
+        I --> J --> J2 --> K
     end
 
     subgraph sg5["⑤ Vagas e Candidatura"]
@@ -109,9 +108,9 @@ flowchart TD
     end
 
     subgraph sg4["④ Capacitação"]
-        E5["E-5 · Trilha disponível\nInformar trilhas compatíveis"]
-        E6["E-6 · Lembrete de trilha\nReforçar para iniciar a trilha"]
-        E7["E-7 · Trilha concluída\nParabéns pela conclusão"]
+        E5["E-5 · Curso obrigatório disponível\nExplicar que o curso libera as vagas"]
+        E6["E-6 · Lembrete do curso\nReforçar para iniciar ou continuar"]
+        E7["E-7 · Curso concluído\nConfirmar desbloqueio das vagas"]
         E5 --> E6 --> E7
     end
 
@@ -140,7 +139,7 @@ flowchart TD
     OB2 -.-> F4["F-4 · Chat não iniciado após onboarding\nE-mail: 2h · WA: 24h"]
     CH -.-> F5["F-5 · Perfil não completado\nWA: 3h · E-mail: 24h e 72h"]
     E4 -.-> F6["F-6 · Emprecard gerado\nImediato"]
-    E5 -.-> F7["F-7 · Curso indicado como pré-requisito\nImediato · 24h · 5 dias"]
+    E5 -.-> F7["F-7 · Curso obrigatório disponível\nImediato · 24h · 5 dias"]
     E6 -.-> F8["F-8 · Curso iniciado, mas abandonado\n48h · 5 dias · 10 dias"]
     E7 -.-> F9["F-9 · Vaga liberada após conclusão\nImediato"]
     E8 -.-> E12["E-12 · Sem seleção de vagas\n48h · 5 dias · 10 dias"]
@@ -167,24 +166,23 @@ flowchart TD
     C --> D{Perfil\ncompleto?}
     D -->|Não| C
     D -->|Sim| E[EmpreCard\ngerado]
-    E --> F[Vagas\ncompatíveis]
-    F --> G{Pré-requisitos\npendentes?}
-    G -->|Sim| H[CapacitaCOOP\nCursos]
-    H --> I{Todos\nconcluídos?}
-    I -->|Não| H
-    I -->|Sim| J([Candidatura\nliberada])
-    G -->|Não| J
-    J --> MC[Match Card gerado\nEmpreCard personalizado para a vaga]
+    E --> F[Card do curso obrigatório\nCooperativismo — Primeiras Lições]
+    F --> F2[Abrir curso\nno CapacitaCOOP]
+    F2 --> G{Curso em\nrealização}
+    G -->|Continuar| F2
+    G -->|Finalizar| H[Vagas compatíveis\ndesbloqueadas]
+    H --> I[Usuário abre\nos detalhes da vaga]
+    I --> MC[EmpreCard personalizado\ngerado para a vaga]
     MC --> K[Saída para ATS\nou inscrição externa]
     K --> L[Confirmação manual\nou por RH]
     L --> M[Retorno ao app]
     M --> N{Precisa fortalecer\nperfil?}
     N -->|Sim| O[Atualizar dados,\nexperiências e preferências]
-    O --> P[Receber novas vagas\ne novos cursos]
-    P --> F
+    O --> P[Receber novas vagas\ne cursos opcionais]
+    P --> H
     N -->|Não| Q[Seguir acompanhando\nprocessos ativos]
     Q --> R{Nova vaga aderente?}
-    R -->|Sim| J
+    R -->|Sim| I
     R -->|Não| S[Reativação periódica\npor IA]
     S --> C
 `,
@@ -201,9 +199,9 @@ flowchart TD
     D -->|Não| E[Vaga segue em acompanhamento]
     D -->|Sim| F[Registrar event apply_clicked]
     F --> G[Criar application_intent]
-    G --> MC1[Gerar Match Card\nEmpreCard adaptado à vaga]
+    G --> MC1[Gerar EmpreCard\nEmpreCard adaptado à vaga]
     MC1 --> MC2{Candidato revisa\npacote de aplicação?}
-    MC2 -->|Confirma| H[Exportar currículo ATS\na partir do Match Card]
+    MC2 -->|Confirma| H[Exportar currículo ATS\na partir do EmpreCard]
     MC2 -->|Ajusta destaques| MC1
     H --> I[Anexar match_card_id · resume_id · candidate_id · job_id · cooperative_id]
     I --> J[Redirecionar para ATS externo]

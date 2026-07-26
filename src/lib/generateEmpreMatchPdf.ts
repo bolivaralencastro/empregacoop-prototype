@@ -23,7 +23,7 @@ const VAGA_DEFAULT: MatchCardVaga = {
   cooperativa: "Sicoob Dom Eliseu",
   subtitulo: "Gestão Administrativo-Financeira · Tecnologia e Dados",
   skillsDestaque: ["Gestão Financeira", "Análise de Dados", "Automação com IA"],
-  filename: "MatchCard_Bolivar_Alencastro_Gerente_Adm_Financeiro.pdf",
+  filename: "EmpreCard_Bolivar_Alencastro_Gerente_Adm_Financeiro.pdf",
   resumo:
     "Profissional com 8 experiências em produto digital, dados e automação com IA, unindo visão " +
     "estratégica e rigor analítico. Histórico de liderança em iniciativas multidisciplinares, " +
@@ -162,8 +162,8 @@ export async function generateEmpreMatchPdf(vagaOverride?: MatchCardVaga) {
     "Produto digital", "Estratégia digital", "Integrações", "Fotografia", "Retouching",
   ])];
   doc.setProperties({
-    title: `Match Card — Bolivar Alencastro — ${vaga.titulo}`,
-    subject: `Match Card — ${vaga.titulo} · ${vaga.cooperativa}`,
+    title: `EmpreCard — Bolivar Alencastro — ${vaga.titulo}`,
+    subject: `EmpreCard — ${vaga.titulo} · ${vaga.cooperativa}`,
     author: "Bolivar Alencastro",
     keywords: todasSkills.join(", "),
     creator: "EmpregaCOOP · Empregol",
@@ -194,7 +194,7 @@ export async function generateEmpreMatchPdf(vagaOverride?: MatchCardVaga) {
 
   // Selo de contexto — Match Card para a vaga
   {
-    const badgeText = `Match Card  ·  ${vaga.titulo}  ·  ${vaga.cooperativa}`;
+    const badgeText = `EmpreCard  ·  ${vaga.titulo}  ·  ${vaga.cooperativa}`;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     const textW = doc.getTextWidth(badgeText);

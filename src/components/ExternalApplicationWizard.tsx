@@ -26,13 +26,13 @@ const STEPS: Step[] = [
   },
   {
     Icon: UploadCloud,
-    title: "Use seu Match Card",
-    body: "No campo de upload de currículo da plataforma, anexe o PDF do seu Match Card. A maioria das plataformas lê o arquivo e pré-preenche seu perfil automaticamente — é a forma mais rápida de concluir a candidatura.",
+    title: "Use seu EmpreCard",
+    body: "No campo de upload de currículo da plataforma, anexe o PDF do seu EmpreCard. A maioria das plataformas lê o arquivo e pré-preenche seu perfil automaticamente — é a forma mais rápida de concluir a candidatura.",
   },
   {
     Icon: Send,
     title: "Envie e volte para me contar",
-    body: "Te preparamos para essa candidatura — use o Match Card, envie pela plataforma e volte aqui para avisar que finalizou. Assim a gente segue junto para outras vagas e cursos.",
+    body: "Te preparamos para essa candidatura — use o EmpreCard, envie pela plataforma e volte aqui para avisar que finalizou. Assim a gente segue junto para outras vagas e cursos.",
   },
 ];
 
@@ -120,7 +120,7 @@ export function ExternalApplicationWizard({
             </span>
             <h3 className="text-base font-semibold leading-5 mb-2">Você já conhece o caminho</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Baixe o Match Card desta vaga e anexe no upload de currículo da plataforma da cooperativa. Depois volte aqui para me avisar que finalizou.
+              Baixe o EmpreCard desta vaga e anexe no upload de currículo da plataforma da cooperativa. Depois volte aqui para me avisar que finalizou.
             </p>
             <button
               type="button"
@@ -138,7 +138,7 @@ export function ExternalApplicationWizard({
                 onClick={onDownload}
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-primary/30 bg-primary/8 text-primary text-sm font-semibold hover:bg-primary/12 transition-colors"
               >
-                Baixar Match Card
+                Baixar EmpreCard
               </button>
             )}
             <button

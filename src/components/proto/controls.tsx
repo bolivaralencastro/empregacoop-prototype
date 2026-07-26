@@ -7,9 +7,9 @@ import {
   LogIn, BookOpen, MessageSquare, ChevronRight,
 } from "lucide-react";
 
-export const PROTO_TOTAL = 24;
+export const PROTO_TOTAL = 27;
 
-export type CoursePreset = "initial" | "progress" | "done";
+export type CoursePreset = "initial" | "open" | "progress" | "done";
 
 export const PROTO_STAGES = [
   { label: "Boas-vindas da IA", count: 1 },
@@ -20,12 +20,15 @@ export const PROTO_STAGES = [
   { label: "Localização confirmada", count: 8 },
   { label: "Objetivo profissional", count: 10 },
   { label: "Experiência detalhada", count: 14 },
-  { label: "Vagas compatíveis", count: 15 },
-  { label: "Pré-requisitos · curso", count: 17 },
-  { label: "Candidatura confirmada", count: 20 },
-  { label: "Reativação · retorno", count: 21 },
-  { label: "Nova candidatura", count: 23 },
-  { label: "2ª candidatura · vaga liberada", count: 24 },
+  { label: "Curso obrigatório", count: 15 },
+  { label: "Curso concluído", count: 16 },
+  { label: "Vagas desbloqueadas", count: 17 },
+  { label: "Detalhe da vaga", count: 19 },
+  { label: "Candidatura confirmada", count: 22 },
+  { label: "Retorno · novas vagas", count: 23 },
+  { label: "Nova vaga selecionada", count: 24 },
+  { label: "Confirmar 2ª candidatura", count: 25 },
+  { label: "2ª candidatura registrada", count: 27 },
 ] as const;
 
 const PAGES = [
@@ -86,7 +89,16 @@ export function ProtoControls() {
   }
 
   function selectStage(count: number) {
-    dispatch(count, mode);
+    if (count >= 16) {
+      localStorage.setItem("proto_courses", "done");
+      setCoursePreset("done");
+    } else if (count === 15) {
+      localStorage.setItem("proto_courses", "initial");
+      setCoursePreset("initial");
+    }
+    // Selecting a specific stage is an inspection action: pause playback there.
+    // The user can explicitly re-enable Animated mode when they want it to continue.
+    dispatch(count, "manual");
   }
 
   function selectMode(m: ProtoMode) {
@@ -101,8 +113,10 @@ export function ProtoControls() {
   function reset() {
     localStorage.setItem("proto_stage", "0");
     localStorage.setItem("proto_mode", "animated");
+    localStorage.setItem("proto_courses", "initial");
     setStage(0);
     setMode("animated");
+    setCoursePreset("initial");
     router.push("/entrar");
     setOpen(false);
   }
@@ -245,16 +259,16 @@ export function ProtoControls() {
               ))}
             </div>
 
-            {/* Pré-requisitos */}
+            {/* Curso obrigatório */}
             <div className="px-3 pt-2.5 pb-2">
               <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
-                Pré-requisitos
+                Curso obrigatório
               </p>
               <div className="grid grid-cols-3 gap-1">
                 {([
-                  { id: "initial" as CoursePreset, label: "Bloqueado" },
-                  { id: "progress" as CoursePreset, label: "Andamento" },
-                  { id: "done" as CoursePreset, label: "Liberado" },
+                  { id: "initial" as CoursePreset, label: "Pré-matrícula" },
+                  { id: "progress" as CoursePreset, label: "Em andamento" },
+                  { id: "done" as CoursePreset, label: "Concluído" },
                 ]).map((p) => (
                   <button
                     key={p.id}
