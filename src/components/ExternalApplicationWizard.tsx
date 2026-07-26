@@ -22,17 +22,17 @@ const STEPS: Step[] = [
   {
     Icon: ExternalLink,
     title: "Você vai continuar em outra plataforma",
-    body: "A candidatura acontece no site da cooperativa — pode ser Gupy, Empregare ou uma página de carreiras própria. Você vai precisar de um cadastro rápido por lá; use o mesmo e-mail do EmpregaCOOP para facilitar seu controle.",
+    body: "A candidatura será feita no site da cooperativa, como Gupy ou Empregare. Crie seu cadastro usando o mesmo e-mail do EmpregaCOOP.",
   },
   {
     Icon: UploadCloud,
     title: "Use seu EmpreCard",
-    body: "No campo de upload de currículo da plataforma, anexe o PDF do seu EmpreCard. A maioria das plataformas lê o arquivo e pré-preenche seu perfil automaticamente — é a forma mais rápida de concluir a candidatura.",
+    body: "Anexe o PDF do EmpreCard no campo de currículo. A plataforma poderá preencher seus dados automaticamente.",
   },
   {
     Icon: Send,
-    title: "Envie e volte para me contar",
-    body: "Te preparamos para essa candidatura — use o EmpreCard, envie pela plataforma e volte aqui para avisar que finalizou. Assim a gente segue junto para outras vagas e cursos.",
+    title: "Envie e volte para avisar",
+    body: "Finalize a candidatura na outra plataforma. Depois, volte ao EmpregaCOOP e avise que concluiu.",
   },
 ];
 
@@ -208,7 +208,7 @@ export function ExternalApplicationWizard({
             <div className="mt-4 flex items-start gap-2 rounded-xl bg-success-soft border border-success/25 px-3 py-2.5">
               <Sparkles className="w-3.5 h-3.5 text-success flex-none mt-0.5" />
               <p className="text-xs text-success/80 leading-relaxed">
-                Tudo pronto! Ao continuar, você sai do EmpregaCOOP e vai para a página da vaga na plataforma da cooperativa.
+                Ao continuar, você sairá do EmpregaCOOP e abrirá a página da vaga.
               </p>
             </div>
           )}
